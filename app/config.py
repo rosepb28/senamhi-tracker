@@ -19,7 +19,14 @@ class Settings(BaseSettings):
     request_timeout: int = 30
     user_agent: str = "SENAMHI-Tracker/0.1.0 (Educational Project)"
     
+    # Departments to scrape (comma-separated)
+    departments: str = "LIMA"
+    
     debug: bool = True
+    
+    def get_departments_list(self) -> list[str]:
+        """Parse departments from comma-separated string."""
+        return [d.strip().upper() for d in self.departments.split(",")]
 
 
 settings = Settings()
