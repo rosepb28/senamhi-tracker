@@ -207,6 +207,14 @@ marimo/_lsp/
 __marimo__/
 
 .vscode/
+
+# Database
 *.db
+*.sqlite
+*.sqlite3
+
+# Project specific
+data/
+!data/.gitkeep
 # Test database
 test_storage.db

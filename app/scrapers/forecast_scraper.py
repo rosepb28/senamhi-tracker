@@ -72,12 +72,22 @@ class ForecastScraper:
         
         full_name = name_span.get_text(strip=True)
         
-        match = re.match(r"([A-ZÁÉÍÓÚÑ\s]+)\s*-\s*([A-ZÁÉÍÓÚÑ\s]+)", full_name)
-        if not match:
+        # Extract department (always after last " - ")
+        if " - " not in full_name:
             raise ValueError(f"Cannot parse location from: {full_name}")
         
-        location = match.group(1).strip()
-        department = match.group(2).strip()
+        parts = full_name.rsplit(" - ", 1)  # Split from right
+        department = parts[1].strip()
+        
+        # Extract location (handle "/" for alternate names)
+        location_part = parts[0].strip()
+        if "/" in location_part:
+            # Format: "LIMA OESTE / CALLAO"
+            # Use the part BEFORE "/" as the main location
+            location = location_part.split("/")[0].strip()
+        else:
+            # Standard format: just the location name
+            location = location_part
         
         forecast_rows = cell.find_all("div", class_="row m-3")
         

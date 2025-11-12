@@ -1,5 +1,5 @@
 """CRUD operations for database."""
-from datetime import datetime
+from datetime import datetime, date
 
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
@@ -108,7 +108,7 @@ def get_latest_forecasts(
 
 
 def get_forecast_history(
-    db: Session, location_id: int, forecast_date: datetime
+    db: Session, location_id: int, forecast_date: date
 ) -> list[Forecast]:
     """Get all historical forecasts for a specific date."""
     return (
@@ -122,3 +122,40 @@ def get_forecast_history(
         .order_by(Forecast.scraped_at)
         .all()
     )
+
+def get_latest_issued_date(db: Session, department: str | None = None) -> datetime | None:
+    """Get the most recent issued_at date in database."""
+    query = db.query(func.max(Forecast.issued_at))
+    
+    if department:
+        query = query.join(Location).filter(Location.department == department)
+    
+    result = query.scalar()
+    return result
+
+
+def forecast_exists_for_issue_date(
+    db: Session, issued_at: datetime, department: str | None = None
+) -> bool:
+    """Check if forecasts already exist for a specific issue date."""
+    query = db.query(Forecast).filter(Forecast.issued_at == issued_at)
+    
+    if department:
+        query = query.join(Location).filter(Location.department == department)
+    
+    return query.first() is not None
+
+def delete_forecasts_by_issue_date(
+    db: Session, issued_at: datetime, department: str | None = None
+) -> int:
+    """Delete all forecasts for a specific issue date."""
+    query = db.query(Forecast).filter(Forecast.issued_at == issued_at)
+    
+    if department:
+        query = query.join(Location).filter(Location.department == department)
+    
+    count = query.count()
+    query.delete(synchronize_session=False)
+    db.commit()
+    
+    return count
