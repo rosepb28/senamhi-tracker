@@ -64,7 +64,7 @@ class ForecastScraper:
             description=description,
         )
     
-    def _parse_location_cell(self, cell) -> LocationForecast:
+    def _parse_location_cell(self, cell, issued_at: datetime) -> LocationForecast:
         """Parse all forecasts for a single location from table cell."""
         name_span = cell.find("span", class_="nameCity")
         if not name_span:
@@ -72,7 +72,6 @@ class ForecastScraper:
         
         full_name = name_span.get_text(strip=True)
         
-        # Extract location and department
         match = re.match(r"([A-ZÁÉÍÓÚÑ\s]+)\s*-\s*([A-ZÁÉÍÓÚÑ\s]+)", full_name)
         if not match:
             raise ValueError(f"Cannot parse location from: {full_name}")
@@ -96,6 +95,7 @@ class ForecastScraper:
             department=department,
             full_name=full_name,
             forecasts=daily_forecasts,
+            issued_at=issued_at,
         )
     
     def scrape_forecasts(self, departments: list[str] | None = None) -> list[LocationForecast]:
@@ -110,6 +110,9 @@ class ForecastScraper:
         departments_upper = [d.upper() for d in departments]
         
         soup = self._make_request()
+        
+        # Extract issued date from footer
+        issued_at = self._extract_issued_date(soup)
         
         table = soup.find("table")
         if not table:
@@ -130,7 +133,6 @@ class ForecastScraper:
             
             full_name = name_span.get_text(strip=True)
             
-            # Check if location belongs to any of the specified departments
             matches_department = False
             for dept in departments_upper:
                 if f"- {dept}" in full_name.upper():
@@ -141,7 +143,7 @@ class ForecastScraper:
                 continue
             
             try:
-                location_forecast = self._parse_location_cell(cell)
+                location_forecast = self._parse_location_cell(cell, issued_at)
                 forecasts.append(location_forecast)
                 
                 time.sleep(0.1)
@@ -151,3 +153,19 @@ class ForecastScraper:
                 continue
         
         return forecasts
+
+    def _extract_issued_date(self, soup: BeautifulSoup) -> datetime:
+        """Extract forecast issued date from page footer."""
+        from app.scrapers.utils import parse_issued_date
+        
+        # Look for text containing "Emisión:"
+        for element in soup.find_all(string=re.compile(r"Emisión:", re.IGNORECASE)):
+            parent_text = element.parent.get_text(strip=True)
+            try:
+                return parse_issued_date(parent_text)
+            except ValueError:
+                continue
+        
+        # Fallback to current datetime if not found
+        print("Warning: Issued date not found, using current datetime")
+        return datetime.now()

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from app.scrapers.utils import extract_icon_type, parse_date, parse_temperature
 from app.models.forecast import WeatherIcon
@@ -13,11 +13,21 @@ def test_parse_temperature():
 
 def test_parse_date():
     """Test Spanish date parsing."""
-    date = parse_date("miércoles, 12 de noviembre", year=2024)
-    assert date.day == 12
-    assert date.month == 11
-    assert date.year == 2024
+    parsed = parse_date("miércoles, 12 de noviembre", year=2024)
+    assert parsed.day == 12
+    assert parsed.month == 11
+    assert parsed.year == 2024
+    assert isinstance(parsed, date)
 
+def test_parse_issued_date():
+    """Test issued date parsing."""
+    from app.scrapers.utils import parse_issued_date
+    
+    issued = parse_issued_date("Emisión: martes, 11 de noviembre del 2025")
+    assert issued.day == 11
+    assert issued.month == 11
+    assert issued.year == 2025
+    assert isinstance(issued, datetime)
 
 def test_extract_icon_type():
     """Test weather icon type mapping."""
