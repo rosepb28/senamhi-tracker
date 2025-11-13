@@ -1,4 +1,5 @@
 """Tests for CLI commands."""
+
 from typer.testing import CliRunner
 
 from app.main import app

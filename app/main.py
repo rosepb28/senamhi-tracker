@@ -1,4 +1,5 @@
 """CLI entry point."""
+
 import typer
 
 from app.cli.commands import app as cli_app

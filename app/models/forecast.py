@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class WeatherIcon(str, Enum):
     """Weather icon types from SENAMHI."""
-    
+
     CLEAR = "clear"
     PARTLY_CLOUDY = "partly_cloudy"
     CLOUDY = "cloudy"
@@ -17,7 +17,7 @@ class WeatherIcon(str, Enum):
 
 class DailyForecast(BaseModel):
     """Single day weather forecast."""
-    
+
     date: date
     day_name: str
     temp_max: int = Field(ge=-20, le=50)
@@ -28,7 +28,7 @@ class DailyForecast(BaseModel):
 
 class LocationForecast(BaseModel):
     """Weather forecast for a specific location with multiple days."""
-    
+
     location: str
     department: str
     full_name: str
