@@ -219,3 +219,7 @@ data/
 .DS_Store
 # Test database
 test_storage.db
+
+# Logs
+logs/
+*.log

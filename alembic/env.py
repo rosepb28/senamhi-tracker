@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.config import settings
 from app.database import Base
-from app.storage.models import Forecast, Location
+from app.storage.models import Forecast, Location, ScrapeRun
 
 config = context.config
 

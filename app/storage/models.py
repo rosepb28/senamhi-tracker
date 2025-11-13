@@ -62,3 +62,26 @@ class Forecast(Base):
 
     def __repr__(self) -> str:
         return f"<Forecast(id={self.id}, location_id={self.location_id}, date={self.forecast_date})>"
+
+class ScrapeRun(Base):
+    """Scrape run history table."""
+    
+    __tablename__ = "scrape_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    
+    started_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    
+    locations_scraped: Mapped[int] = mapped_column(Integer, default=0)
+    forecasts_saved: Mapped[int] = mapped_column(Integer, default=0)
+    
+    status: Mapped[str] = mapped_column(String)  # success, failed, partial
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    departments: Mapped[str] = mapped_column(String)  # Comma-separated
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+    def __repr__(self) -> str:
+        return f"<ScrapeRun(id={self.id}, status='{self.status}', started_at={self.started_at})>"

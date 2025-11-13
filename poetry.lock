@@ -483,6 +483,18 @@ files = [
 ]
 
 [[package]]
+name = "lockfile"
+version = "0.12.2"
+description = "Platform-independent file locking module"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "lockfile-0.12.2-py2.py3-none-any.whl", hash = "sha256:6c3cb24f344923d30b2785d5ad75182c8ea7ac1b6171b08657258ec7429d50fa"},
+    {file = "lockfile-0.12.2.tar.gz", hash = "sha256:6aed02de03cba24efabcd600b30540140634fc06cfa603822d508d5361e9f799"},
+]
+
+[[package]]
 name = "lxml"
 version = "6.0.2"
 description = "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API."
@@ -1107,6 +1119,28 @@ pytest = ">=7"
 testing = ["process-tests", "pytest-xdist", "virtualenv"]
 
 [[package]]
+name = "python-daemon"
+version = "3.1.2"
+description = "Library to implement a well-behaved Unix daemon process."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "python_daemon-3.1.2-py3-none-any.whl", hash = "sha256:b906833cef63502994ad48e2eab213259ed9bb18d54fa8774dcba2ff7864cec6"},
+    {file = "python_daemon-3.1.2.tar.gz", hash = "sha256:f7b04335adc473de877f5117e26d5f1142f4c9f7cd765408f0877757be5afbf4"},
+]
+
+[package.dependencies]
+lockfile = ">=0.10"
+
+[package.extras]
+build = ["build", "changelog-chug", "docutils", "python-daemon[doc]", "wheel"]
+devel = ["python-daemon[dist,test]"]
+dist = ["python-daemon[build]", "twine"]
+static-analysis = ["isort (>=5.13,<6.0)", "pip-check", "pycodestyle (>=2.12,<3.0)", "pydocstyle (>=6.3,<7.0)", "pyupgrade (>=3.17,<4.0)"]
+test = ["coverage", "python-daemon[build,static-analysis]", "testscenarios (>=0.4)", "testtools"]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
@@ -1308,6 +1342,21 @@ files = [
     {file = "ruff-0.14.4-py3-none-win_arm64.whl", hash = "sha256:dd09c292479596b0e6fec8cd95c65c3a6dc68e9ad17b8f2382130f87ff6a75bb"},
     {file = "ruff-0.14.4.tar.gz", hash = "sha256:f459a49fe1085a749f15414ca76f61595f1a2cc8778ed7c279b6ca2e1fd19df3"},
 ]
+
+[[package]]
+name = "schedule"
+version = "1.2.2"
+description = "Job scheduling for humans."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "schedule-1.2.2-py3-none-any.whl", hash = "sha256:5bef4a2a0183abf44046ae0d164cadcac21b1db011bdd8102e4a0c1e91e06a7d"},
+    {file = "schedule-1.2.2.tar.gz", hash = "sha256:15fe9c75fe5fd9b9627f3f19cc0ef1420508f9f9a46f45cd0769ef75ede5f0b7"},
+]
+
+[package.extras]
+timezone = ["pytz"]
 
 [[package]]
 name = "shellingham"
@@ -1528,4 +1577,4 @@ test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "a99da1f37808dd188f99c7040ec6f8b58f8c10ea07acc457f30e2c443772826e"
+content-hash = "1f4711d27b4a859f9f1731c82f375d1d775ebb0566c956fd3f1648823142a923"

@@ -13,6 +13,9 @@ from app.scrapers.forecast_scraper import ForecastScraper
 from app.storage import crud
 
 app = typer.Typer()
+daemon = typer.Typer(help="Scheduler daemon commands")
+app.add_typer(daemon, name="daemon")
+
 console = Console()
 
 
@@ -348,3 +351,96 @@ def departments():
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise typer.Exit(1)
+
+# Create subgroup for daemon commands
+daemon = typer.Typer(help="Scheduler daemon commands")
+app.add_typer(daemon, name="daemon")
+
+
+@daemon.command(name="start")
+def daemon_start():
+    """Start the scheduler daemon in foreground."""
+    from app.scheduler.scheduler import ForecastScheduler
+    
+    if not settings.enable_scheduler:
+        console.print("[red]Scheduler is disabled in configuration.[/red]")
+        console.print("[dim]Set ENABLE_SCHEDULER=True in .env to enable.[/dim]")
+        raise typer.Exit(1)
+    
+    scheduler = ForecastScheduler()
+    scheduler.start()
+
+
+@app.command()
+def runs(
+    limit: Annotated[int, typer.Option(help="Number of runs to show")] = 20,
+    status: Annotated[
+        str | None, typer.Option(help="Filter by status (success/failed/skipped)")
+    ] = None,
+):
+    """Show scrape run history."""
+    db = SessionLocal()
+    
+    try:
+        runs = crud.get_scrape_runs(db, limit=limit, status=status)
+        
+        if not runs:
+            console.print("[yellow]No scrape runs found in database.[/yellow]")
+            return
+        
+        table = Table(
+            title=f"Scrape Run History (Last {limit})",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        
+        table.add_column("ID", style="cyan", justify="right")
+        table.add_column("Started", style="white")
+        table.add_column("Duration", style="dim", justify="right")
+        table.add_column("Status", style="yellow")
+        table.add_column("Locations", style="green", justify="right")
+        table.add_column("Forecasts", style="green", justify="right")
+        table.add_column("Departments", style="dim")
+        
+        for run in runs:
+            # Calculate duration
+            if run.finished_at:
+                duration = run.finished_at - run.started_at
+                duration_str = f"{duration.total_seconds():.0f}s"
+            else:
+                duration_str = "running"
+            
+            # Status color
+            if run.status == "success":
+                status_text = "[green]success[/green]"
+            elif run.status == "failed":
+                status_text = "[red]failed[/red]"
+            elif run.status == "skipped":
+                status_text = "[yellow]skipped[/yellow]"
+            else:
+                status_text = run.status
+            
+            table.add_row(
+                str(run.id),
+                run.started_at.strftime("%Y-%m-%d %H:%M:%S"),
+                duration_str,
+                status_text,
+                str(run.locations_scraped),
+                str(run.forecasts_saved),
+                run.departments[:30] + "..." if len(run.departments) > 30 else run.departments,
+            )
+        
+        console.print()
+        console.print(table)
+        console.print()
+        
+        # Show error details for failed runs
+        failed_runs = [r for r in runs if r.status == "failed" and r.error_message]
+        if failed_runs:
+            console.print("[bold red]Recent Errors:[/bold red]\n")
+            for run in failed_runs[:3]:
+                console.print(f"[red]Run #{run.id}:[/red] {run.error_message[:100]}")
+            console.print()
+        
+    finally:
+        db.close()

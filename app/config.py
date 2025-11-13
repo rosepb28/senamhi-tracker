@@ -15,17 +15,21 @@ class Settings(BaseSettings):
     
     database_url: str = "sqlite:///./data/weather.db"
     
+    # Scraping configuration
     scrape_delay: float = 2.0
     request_timeout: int = 30
     user_agent: str = "SENAMHI-Tracker/0.1.0 (Educational Project)"
     
-    # Scraping configuration
     scrape_all_departments: bool = False
     departments: str = "LIMA"
     
     # Scheduler configuration
     enable_scheduler: bool = False
-    scrape_interval_hours: int = 12
+    scrape_interval_hours: float = 12.0
+    scheduler_start_immediately: bool = True
+    log_file: str = "logs/scheduler.log"
+    max_retries: int = 3
+    retry_delay_seconds: int = 60
     
     debug: bool = True
     db_echo: bool = False

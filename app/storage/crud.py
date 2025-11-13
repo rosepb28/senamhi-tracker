@@ -1,12 +1,12 @@
 """CRUD operations for database."""
-from datetime import datetime, date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from app.models.forecast import LocationForecast as PydanticLocationForecast
 from app.storage.models import Forecast, Location
-
+from app.storage.models import ScrapeRun
 
 def get_or_create_location(
     db: Session, location: str, department: str, full_name: str
@@ -159,3 +159,54 @@ def delete_forecasts_by_issue_date(
     db.commit()
     
     return count
+
+def create_scrape_run(db: Session, departments: list[str]) -> ScrapeRun:
+    """Create a new scrape run record."""
+    
+    run = ScrapeRun(
+        started_at=datetime.now(UTC),
+        status="running",
+        departments=",".join(departments),
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def update_scrape_run(
+    db: Session,
+    run_id: int,
+    status: str,
+    locations_scraped: int = 0,
+    forecasts_saved: int = 0,
+    error_message: str | None = None,
+) -> ScrapeRun:
+    """Update scrape run with results."""
+    
+    run = db.query(ScrapeRun).filter(ScrapeRun.id == run_id).first()
+    if not run:
+        raise ValueError(f"ScrapeRun {run_id} not found")
+    
+    run.finished_at = datetime.now(UTC)
+    run.status = status
+    run.locations_scraped = locations_scraped
+    run.forecasts_saved = forecasts_saved
+    run.error_message = error_message
+    
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def get_scrape_runs(
+    db: Session, limit: int = 20, status: str | None = None
+) -> list[ScrapeRun]:
+    """Get recent scrape runs."""
+    
+    query = db.query(ScrapeRun).order_by(ScrapeRun.started_at.desc())
+    
+    if status:
+        query = query.filter(ScrapeRun.status == status)
+    
+    return query.limit(limit).all()
