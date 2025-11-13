@@ -76,3 +76,14 @@ def test_scraper_multiple_departments():
     
     assert len(departments_found) >= 1
     assert "LIMA" in departments_found or "CUSCO" in departments_found
+
+def test_get_all_departments():
+    """Test discovering all departments."""
+    from app.scrapers.forecast_scraper import ForecastScraper
+    
+    scraper = ForecastScraper()
+    departments = scraper.get_all_departments()
+    
+    assert len(departments) > 0
+    assert "LIMA" in departments
+    assert all(dept.isupper() for dept in departments)

@@ -9,6 +9,10 @@ from app.config import settings
 from app.models.forecast import DailyForecast, LocationForecast
 from app.scrapers.utils import extract_icon_type, parse_date, parse_temperature
 
+from rich.console import Console
+
+console = Console()
+
 
 class ForecastScraper:
     """Scraper for SENAMHI weather forecasts."""
@@ -179,3 +183,41 @@ class ForecastScraper:
         # Fallback to current datetime if not found
         print("Warning: Issued date not found, using current datetime")
         return datetime.now()
+
+    def get_all_departments(self) -> list[str]:
+        """Discover all available departments from SENAMHI."""
+        soup = self._make_request()
+        
+        table = soup.find("table")
+        if not table:
+            raise ValueError("Forecast table not found")
+        
+        rows = table.find_all("tr")
+        
+        departments = set()
+        
+        for row in rows:
+            cell = row.find("td")
+            if not cell:
+                continue
+            
+            name_span = cell.find("span", class_="nameCity")
+            if not name_span:
+                continue
+            
+            full_name = name_span.get_text(strip=True)
+            
+            # Extract department
+            if " - " in full_name:
+                department = full_name.rsplit(" - ", 1)[1].strip()
+                departments.add(department)
+        
+        return sorted(list(departments))
+    
+    def scrape_all_departments(self) -> list[LocationForecast]:
+        """Scrape forecasts for all available departments."""
+        console.print("[yellow]Discovering all departments...[/yellow]")
+        departments = self.get_all_departments()
+        console.print(f"[green]Found {len(departments)} departments:[/green] {', '.join(departments)}\n")
+        
+        return self.scrape_forecasts(departments=departments)

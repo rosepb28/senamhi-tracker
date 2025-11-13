@@ -20,8 +20,12 @@ console = Console()
 def scrape(
     departments: Annotated[
         str | None,
-        typer.Option(help="Comma-separated departments (default: from config)"),
+        typer.Option(help="Comma-separated departments (overrides config)"),
     ] = None,
+    all_departments: Annotated[
+        bool,
+        typer.Option("--all", help="Scrape all available departments"),
+    ] = False,
     force: Annotated[
         bool, typer.Option("--force", "-f", help="Force scrape even if data exists")
     ] = False,
@@ -30,18 +34,29 @@ def scrape(
     db = SessionLocal()
     
     try:
-        dept_list = (
-            [d.strip().upper() for d in departments.split(",")]
-            if departments
-            else settings.get_departments_list()
-        )
-        
-        console.print(f"\n[bold cyan]Scraping forecasts for:[/bold cyan] {', '.join(dept_list)}\n")
-        
         scraper = ForecastScraper()
         
-        console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
-        forecasts = scraper.scrape_forecasts(departments=dept_list)
+        # Determine what to scrape
+        if all_departments:
+            console.print("\n[bold cyan]Scraping ALL departments from SENAMHI[/bold cyan]\n")
+            console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
+            forecasts = scraper.scrape_all_departments()
+            dept_list = sorted(list(set(f.department for f in forecasts)))
+        elif departments:
+            dept_list = [d.strip().upper() for d in departments.split(",")]
+            console.print(f"\n[bold cyan]Scraping forecasts for:[/bold cyan] {', '.join(dept_list)}\n")
+            console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
+            forecasts = scraper.scrape_forecasts(departments=dept_list)
+        elif settings.scrape_all_departments:
+            console.print("\n[bold cyan]Scraping ALL departments from SENAMHI[/bold cyan]\n")
+            console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
+            forecasts = scraper.scrape_all_departments()
+            dept_list = sorted(list(set(f.department for f in forecasts)))
+        else:
+            dept_list = settings.get_departments_list()
+            console.print(f"\n[bold cyan]Scraping forecasts for:[/bold cyan] {', '.join(dept_list)}\n")
+            console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
+            forecasts = scraper.scrape_forecasts(departments=dept_list)
         
         if not forecasts:
             console.print("[red]No forecasts found![/red]")
@@ -49,6 +64,7 @@ def scrape(
         
         issued_at = forecasts[0].issued_at
         console.print(f"[dim]Issue date: {issued_at.strftime('%Y-%m-%d')}[/dim]\n")
+
         
         # Check if data already exists
         data_exists = False
@@ -60,7 +76,7 @@ def scrape(
         if data_exists:
             if not force:
                 console.print(
-                    f"[yellow]⚠️  Forecasts with issue date "
+                    f"[yellow]Warning: Forecasts with issue date "
                     f"{issued_at.strftime('%Y-%m-%d')} already exist in database.[/yellow]"
                 )
                 console.print(
@@ -68,36 +84,38 @@ def scrape(
                 )
                 return
             else:
-                # Delete existing data for this issue date
                 console.print("[yellow]Replacing existing data...[/yellow]")
                 for dept in dept_list:
                     deleted = crud.delete_forecasts_by_issue_date(db, issued_at, dept)
                     if deleted > 0:
                         console.print(f"  [dim]Deleted {deleted} old entries for {dept}[/dim]")
+                console.print()
         
-        console.print(f"[green]Found {len(forecasts)} locations[/green]")
+        console.print(f"[green]Found {len(forecasts)} locations[/green]\n")
         
         saved_count = 0
         for location_forecast in forecasts:
             saved = crud.save_forecast(db, location_forecast)
             saved_count += len(saved)
-            console.print(
-                f"  [dim]✓[/dim] {location_forecast.location}: {len(saved)} forecasts"
-            )
+            # console.print(
+            #     f"  [dim]OK[/dim] {location_forecast.location} ({location_forecast.department}): {len(saved)} forecasts"
+            # )
         
         console.print(
-            f"\n[bold green]✓ Successfully saved {saved_count} forecast entries![/bold green]\n"
+            f"\n[bold green]Successfully saved {saved_count} forecast entries for {len(dept_list)} departments![/bold green]\n"
         )
         
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
         raise typer.Exit(1)
     finally:
         db.close()
 
 
-@app.command()
-def list(
+@app.command(name="list")
+def list_locations(
     department: Annotated[
         str | None, typer.Option(help="Filter by department")
     ] = None,
@@ -109,12 +127,20 @@ def list(
     db = SessionLocal()
     
     try:
+        
         locations = crud.get_locations(db, active_only=active_only)
         
         if department:
-            locations = [
-                loc for loc in locations if loc.department.upper() == department.upper()
-            ]
+            if isinstance(department, set):
+                dept_filters = {d.upper() for d in department}
+                locations = [
+                    loc for loc in locations if loc.department.upper() in dept_filters
+                ]
+            else:
+                dept_filter = department.upper()
+                locations = [
+                    loc for loc in locations if loc.department.upper() == dept_filter
+                ]
         
         if not locations:
             console.print("[yellow]No locations found in database.[/yellow]")
@@ -129,7 +155,7 @@ def list(
         table.add_column("Status", style="yellow", justify="center")
         
         for loc in locations:
-            status = "✓" if loc.active else "✗"
+            status = "OK" if loc.active else "X"
             table.add_row(str(loc.id), loc.location, loc.department, status)
         
         console.print()
@@ -181,8 +207,8 @@ def show(
             table.add_row(
                 forecast.forecast_date.strftime("%Y-%m-%d"),
                 forecast.day_name,
-                f"{forecast.temp_max}°C",
-                f"{forecast.temp_min}°C",
+                f"{forecast.temp_max}C",
+                f"{forecast.temp_min}C",
                 forecast.description[:60] + "..." if len(forecast.description) > 60 else forecast.description,
             )
         
@@ -210,7 +236,6 @@ def history(
             console.print(f"[red]Location '{location}' not found.[/red]")
             raise typer.Exit(1)
         
-        # Parse as date, not datetime
         forecast_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         
         forecasts = crud.get_forecast_history(db, db_location.id, forecast_date)
@@ -245,8 +270,8 @@ def history(
             table.add_row(
                 forecast.issued_at.strftime("%Y-%m-%d"),
                 forecast.scraped_at.strftime("%m-%d %H:%M"),
-                f"{forecast.temp_max}°C",
-                f"{forecast.temp_min}°C",
+                f"{forecast.temp_max}C",
+                f"{forecast.temp_min}C",
                 change,
             )
             
@@ -258,6 +283,7 @@ def history(
         
     finally:
         db.close()
+
 
 @app.command()
 def status():
@@ -301,3 +327,24 @@ def status():
         
     finally:
         db.close()
+
+
+@app.command()
+def departments():
+    """List all available departments from SENAMHI."""
+    try:
+        console.print("\n[yellow]Fetching available departments from SENAMHI...[/yellow]\n")
+        
+        scraper = ForecastScraper()
+        depts = scraper.get_all_departments()
+        
+        console.print(f"[bold cyan]Available Departments ({len(depts)}):[/bold cyan]\n")
+        
+        for dept in depts:
+            console.print(f"  - {dept}")
+        
+        console.print()
+        
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(1)
