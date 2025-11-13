@@ -1,0 +1,52 @@
+services:
+  senamhi-tracker:
+    build: .
+    container_name: senamhi-tracker
+    restart: unless-stopped
+    environment:
+      # Database
+      - DATABASE_URL=sqlite:///./data/weather.db
+      - DB_ECHO=False
+      
+      # Scraping
+      - SCRAPE_ALL_DEPARTMENTS=False
+      - DEPARTMENTS=LIMA
+      - SCRAPE_DELAY=2.0
+      - REQUEST_TIMEOUT=30
+      
+      # Scheduler
+      - ENABLE_SCHEDULER=True
+      - SCRAPE_INTERVAL_HOURS=12.0
+      - SCHEDULER_START_IMMEDIATELY=True
+      - MAX_RETRIES=3
+      - RETRY_DELAY_SECONDS=60
+      
+      # Logs
+      - LOG_FILE=logs/scheduler.log
+      - DEBUG=False
+    
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  senamhi-scraper:
+    build: .
+    container_name: senamhi-scraper
+    profiles:
+      - manual
+    environment:
+      - DATABASE_URL=sqlite:///./data/weather.db
+      - SCRAPE_ALL_DEPARTMENTS=True
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: sh -c "alembic upgrade head && python -m app.main scrape --all"

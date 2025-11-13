@@ -223,3 +223,11 @@ test_storage.db
 # Logs
 logs/
 *.log
+
+# Docker
+.dockerignore
+
+# Coverage
+coverage.xml
+.coverage
+htmlcov/
