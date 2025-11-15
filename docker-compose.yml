@@ -16,10 +16,14 @@ services:
 
       # Scheduler
       - ENABLE_SCHEDULER=True
-      - SCRAPE_INTERVAL_HOURS=12.0
+      - FORECAST_SCRAPE_INTERVAL=24
+      - WARNING_SCRAPE_INTERVAL=6
       - SCHEDULER_START_IMMEDIATELY=True
       - MAX_RETRIES=3
       - RETRY_DELAY_SECONDS=60
+
+      # Warning Limits
+      - MAX_WARNINGS=10
 
       # Logs
       - LOG_FILE=logs/scheduler.log

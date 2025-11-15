@@ -1,8 +1,8 @@
-"""initial schema
+"""add status field to warnings
 
-Revision ID: 2e2e9130ff3e
+Revision ID: 4a8110bbaf94
 Revises:
-Create Date: 2025-11-12 18:31:50.127011
+Create Date: 2025-11-14 18:16:43.444911
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "2e2e9130ff3e"
+revision: str = "4a8110bbaf94"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -39,6 +39,54 @@ def upgrade() -> None:
     op.create_index(op.f("ix_locations_id"), "locations", ["id"], unique=False)
     op.create_index(
         op.f("ix_locations_location"), "locations", ["location"], unique=True
+    )
+    op.create_table(
+        "scrape_runs",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("started_at", sa.DateTime(), nullable=False),
+        sa.Column("finished_at", sa.DateTime(), nullable=True),
+        sa.Column("locations_scraped", sa.Integer(), nullable=False),
+        sa.Column("forecasts_saved", sa.Integer(), nullable=False),
+        sa.Column("status", sa.String(), nullable=False),
+        sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column("departments", sa.String(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_scrape_runs_id"), "scrape_runs", ["id"], unique=False)
+    op.create_index(
+        op.f("ix_scrape_runs_started_at"), "scrape_runs", ["started_at"], unique=False
+    )
+    op.create_table(
+        "warnings",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("warning_number", sa.String(), nullable=False),
+        sa.Column("severity", sa.String(), nullable=False),
+        sa.Column("status", sa.String(), nullable=False),
+        sa.Column("title", sa.String(), nullable=False),
+        sa.Column("description", sa.Text(), nullable=False),
+        sa.Column("valid_from", sa.DateTime(), nullable=False),
+        sa.Column("valid_until", sa.DateTime(), nullable=False),
+        sa.Column("issued_at", sa.DateTime(), nullable=False),
+        sa.Column("scraped_at", sa.DateTime(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_warnings_id"), "warnings", ["id"], unique=False)
+    op.create_index(
+        op.f("ix_warnings_issued_at"), "warnings", ["issued_at"], unique=False
+    )
+    op.create_index(
+        op.f("ix_warnings_severity"), "warnings", ["severity"], unique=False
+    )
+    op.create_index(op.f("ix_warnings_status"), "warnings", ["status"], unique=False)
+    op.create_index(
+        op.f("ix_warnings_valid_from"), "warnings", ["valid_from"], unique=False
+    )
+    op.create_index(
+        op.f("ix_warnings_valid_until"), "warnings", ["valid_until"], unique=False
+    )
+    op.create_index(
+        op.f("ix_warnings_warning_number"), "warnings", ["warning_number"], unique=True
     )
     op.create_table(
         "forecasts",
@@ -83,6 +131,17 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_forecasts_id"), table_name="forecasts")
     op.drop_index(op.f("ix_forecasts_forecast_date"), table_name="forecasts")
     op.drop_table("forecasts")
+    op.drop_index(op.f("ix_warnings_warning_number"), table_name="warnings")
+    op.drop_index(op.f("ix_warnings_valid_until"), table_name="warnings")
+    op.drop_index(op.f("ix_warnings_valid_from"), table_name="warnings")
+    op.drop_index(op.f("ix_warnings_status"), table_name="warnings")
+    op.drop_index(op.f("ix_warnings_severity"), table_name="warnings")
+    op.drop_index(op.f("ix_warnings_issued_at"), table_name="warnings")
+    op.drop_index(op.f("ix_warnings_id"), table_name="warnings")
+    op.drop_table("warnings")
+    op.drop_index(op.f("ix_scrape_runs_started_at"), table_name="scrape_runs")
+    op.drop_index(op.f("ix_scrape_runs_id"), table_name="scrape_runs")
+    op.drop_table("scrape_runs")
     op.drop_index(op.f("ix_locations_location"), table_name="locations")
     op.drop_index(op.f("ix_locations_id"), table_name="locations")
     op.drop_index(op.f("ix_locations_department"), table_name="locations")
