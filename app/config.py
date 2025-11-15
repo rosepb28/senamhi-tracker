@@ -25,7 +25,6 @@ class Settings(BaseSettings):
 
     # Scheduler configuration
     enable_scheduler: bool = False
-    scrape_interval_hours: float = 12.0
     scheduler_start_immediately: bool = True
     log_file: str = "logs/scheduler.log"
     max_retries: int = 3
@@ -33,6 +32,13 @@ class Settings(BaseSettings):
 
     debug: bool = True
     db_echo: bool = False
+
+    # Scheduler intervals (in hours)
+    forecast_scrape_interval: int = 24
+    warning_scrape_interval: int = 6
+
+    # Warning scraping limits
+    max_warnings: int = 5
 
     def get_departments_list(self) -> list[str]:
         """Parse departments from comma-separated string."""

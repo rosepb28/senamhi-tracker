@@ -3,6 +3,7 @@
 import time
 import traceback
 
+from app.cli.commands import _run_warnings_scrape
 from app.config import settings
 from app.database import SessionLocal
 from app.scrapers.forecast_scraper import ForecastScraper
@@ -12,12 +13,12 @@ from app.storage import crud
 logger = setup_logger()
 
 
-def run_scrape_job() -> None:
-    """Execute scraping job with error handling and logging."""
+def run_forecast_scrape_job() -> None:
+    """Execute forecast scraping job with error handling and logging."""
     db = SessionLocal()
 
     try:
-        logger.info("Starting scheduled scrape job")
+        logger.info("Starting scheduled forecast scrape job")
 
         # Determine what to scrape
         if settings.scrape_all_departments:
@@ -74,7 +75,7 @@ def run_scrape_job() -> None:
                 status="failed",
                 error_message=last_error,
             )
-            logger.error(f"Scrape job failed: {last_error}")
+            logger.error(f"Forecast scrape job failed: {last_error}")
             return
 
         # Check if data already exists (skip if same issue date)
@@ -120,12 +121,12 @@ def run_scrape_job() -> None:
         )
 
         logger.info(
-            f"Scrape job completed successfully: "
+            f"Forecast scrape job completed successfully: "
             f"{len(forecasts)} locations, {saved_count} forecasts saved"
         )
 
     except Exception as e:
-        logger.error(f"Unexpected error in scrape job: {e}")
+        logger.error(f"Unexpected error in forecast scrape job: {e}")
         logger.debug(traceback.format_exc())
 
         try:
@@ -141,3 +142,16 @@ def run_scrape_job() -> None:
 
     finally:
         db.close()
+
+
+def run_warnings_scrape_job() -> None:
+    """Execute warnings scraping job with error handling and logging."""
+    logger.info("Starting scheduled warnings scrape job")
+    
+    try:
+        _run_warnings_scrape(force=False)
+        logger.info("Warnings scrape job completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Warnings scrape job failed: {e}")
+        logger.debug(traceback.format_exc())

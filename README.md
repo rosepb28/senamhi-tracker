@@ -5,9 +5,10 @@ Web scraper and monitor for Peru's national weather service (SENAMHI) with histo
 ## Features
 
 - 🌍 **Multi-department scraping** - Scrape forecasts from all 24 Peruvian departments
+- 🚨 **Weather warnings** - Track active meteorological alerts (EMITIDO/VIGENTE/VENCIDO)
 - 📊 **Historical tracking** - Track how forecasts change over time
 - ⏰ **Automatic scheduling** - Run periodic scraping with configurable intervals
-- 💾 **SQLite database** - Store and query forecast history
+- 💾 **SQLite database** - Store and query forecast and warning history
 - 🖥️ **CLI interface** - Rich terminal interface with tables and colors
 - 🐳 **Docker support** - Easy deployment with Docker Compose
 - 📝 **Comprehensive logging** - Track all scraping operations
@@ -56,17 +57,38 @@ docker-compose logs -f
 
 #### Scraping
 ```bash
-# Scrape Lima (default)
+# Scrape both forecasts and warnings (default)
 poetry run senamhi scrape
 
+# Scrape only forecasts
+poetry run senamhi scrape forecasts
+
+# Scrape only warnings
+poetry run senamhi scrape warnings
+
 # Scrape specific departments
-poetry run senamhi scrape --departments "LIMA,CUSCO,AREQUIPA"
+poetry run senamhi scrape forecasts --departments "LIMA,CUSCO"
 
 # Scrape all departments
-poetry run senamhi scrape --all
+poetry run senamhi scrape forecasts --all
 
 # Force rescrape (replace existing data)
-poetry run senamhi scrape --force
+poetry run senamhi scrape forecasts --force
+```
+
+#### Viewing Warnings
+```bash
+# List last 10 warnings (all)
+poetry run senamhi warnings list
+
+# List last 20 warnings
+poetry run senamhi warnings list --limit 20
+
+# List only active warnings (EMITIDO + VIGENTE)
+poetry run senamhi warnings active
+
+# Show specific warning details
+poetry run senamhi warnings show 409
 ```
 
 #### Viewing Data
@@ -91,6 +113,9 @@ poetry run senamhi status
 ```bash
 # Start scheduler daemon (foreground)
 poetry run senamhi daemon start
+
+# Check scheduler status
+poetry run senamhi daemon status
 
 # View scrape run history
 poetry run senamhi runs
@@ -136,8 +161,12 @@ DEPARTMENTS=LIMA                 # Comma-separated list if not scraping all
 
 # Scheduler Configuration
 ENABLE_SCHEDULER=False           # Enable automatic scheduling
-SCRAPE_INTERVAL_HOURS=12.0       # Hours between scrapes
+FORECAST_SCRAPE_INTERVAL=24      # Hours between forecast scrapes
+WARNING_SCRAPE_INTERVAL=6        # Hours between warning scrapes
 SCHEDULER_START_IMMEDIATELY=True # Run immediately on start
+
+# Warning Configuration
+MAX_WARNINGS=5                   # Maximum warnings to scrape per run
 
 # Advanced
 MAX_RETRIES=3                    # Retry attempts on failure
@@ -180,6 +209,9 @@ poetry run ruff format .
 # Lint code
 poetry run ruff check .
 
+# Fix + format
+poetry run ruff check . --fix && poetry run ruff format .
+
 # Run pre-commit hooks
 poetry run pre-commit run --all-files
 ```
@@ -198,19 +230,34 @@ poetry run alembic downgrade -1
 
 ## Examples
 
-## Examples
-
-### Monitor Lima weather automatically
+### Monitor Lima weather and warnings automatically
 ```bash
 # Configure
 cat > .env << 'EOF'
 ENABLE_SCHEDULER=True
-SCRAPE_INTERVAL_HOURS=12.0
+FORECAST_SCRAPE_INTERVAL=24
+WARNING_SCRAPE_INTERVAL=6
 DEPARTMENTS=LIMA
+MAX_WARNINGS=5
 EOF
 
 # Start
 poetry run senamhi daemon start
+```
+
+### Track active weather warnings
+```bash
+# Scrape current warnings
+poetry run senamhi scrape warnings
+
+# View active warnings
+poetry run senamhi warnings active
+
+# View specific warning
+poetry run senamhi warnings show 409
+
+# List all warnings (including expired)
+poetry run senamhi warnings list --limit 20
 ```
 
 ### Track forecast changes

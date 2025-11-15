@@ -87,7 +87,7 @@ def test_get_scrape_runs_filtered(db_session):
 
 @patch("app.scheduler.jobs.ForecastScraper")
 @patch("app.scheduler.jobs.SessionLocal")
-def test_run_scrape_job_success(mock_session, mock_scraper):
+def test_run_forecast_scrape_job_success(mock_session, mock_scraper):
     """Test successful scrape job execution."""
     # This is a basic integration test
     # Full testing would require mocking more components

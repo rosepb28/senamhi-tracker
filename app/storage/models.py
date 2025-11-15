@@ -86,3 +86,26 @@ class ScrapeRun(Base):
 
     def __repr__(self) -> str:
         return f"<ScrapeRun(id={self.id}, status='{self.status}', started_at={self.started_at})>"
+
+class WarningAlert(Base):
+    """Weather warnings and alerts table."""
+    
+    __tablename__ = "warnings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    
+    warning_number: Mapped[str] = mapped_column(String, index=True, unique=True)
+    severity: Mapped[str] = mapped_column(String, index=True)
+    status: Mapped[str] = mapped_column(String, index=True)
+    
+    title: Mapped[str] = mapped_column(String)
+    description: Mapped[str] = mapped_column(Text)
+    
+    valid_from: Mapped[datetime] = mapped_column(DateTime, index=True)
+    valid_until: Mapped[datetime] = mapped_column(DateTime, index=True)
+    issued_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    
+    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+    def __repr__(self) -> str:
+        return f"<WarningAlert(id={self.id}, number='{self.warning_number}', status='{self.status}')>"

@@ -2,6 +2,10 @@ from datetime import datetime, date
 
 from app.scrapers.utils import extract_icon_type, parse_date, parse_temperature
 from app.models.forecast import WeatherIcon
+from typer.testing import CliRunner
+from app.main import app
+
+runner = CliRunner()
 
 
 def test_parse_temperature():
@@ -79,6 +83,28 @@ def test_scraper_multiple_departments():
 
     assert len(departments_found) >= 1
     assert "LIMA" in departments_found or "CUSCO" in departments_found
+
+
+def test_scrape_help():
+    """Test scrape command help."""
+    result = runner.invoke(app, ["scrape", "--help"])
+    assert result.exit_code == 0
+    assert "forecasts" in result.stdout
+    assert "warnings" in result.stdout
+
+
+def test_scrape_forecasts_help():
+    """Test scrape forecasts command help."""
+    result = runner.invoke(app, ["scrape", "forecasts", "--help"])
+    assert result.exit_code == 0
+    assert "Scrape weather forecasts" in result.stdout
+
+
+def test_scrape_warnings_help():
+    """Test scrape warnings command help."""
+    result = runner.invoke(app, ["scrape", "warnings", "--help"])
+    assert result.exit_code == 0
+    assert "Scrape weather warnings" in result.stdout
 
 
 def test_get_all_departments():

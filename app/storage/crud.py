@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.forecast import LocationForecast as PydanticLocationForecast
 from app.storage.models import Forecast, Location
 from app.storage.models import ScrapeRun
+from app.storage.models import WarningAlert
 
 
 def get_or_create_location(
@@ -215,3 +216,84 @@ def get_scrape_runs(
         query = query.filter(ScrapeRun.status == status)
 
     return query.limit(limit).all()
+
+# ==================== Warning Operations ====================
+
+def save_warning(db: Session, warning: "app.models.warning.Warning") -> "WarningAlert":
+    """Save warning to database."""
+    
+    existing = db.query(WarningAlert).filter(
+        WarningAlert.warning_number == warning.warning_number
+    ).first()
+    
+    if existing:
+        existing.severity = warning.severity.value
+        existing.status = warning.status.value
+        existing.title = warning.title
+        existing.description = warning.description
+        existing.valid_from = warning.valid_from
+        existing.valid_until = warning.valid_until
+        existing.issued_at = warning.issued_at
+        existing.scraped_at = warning.scraped_at
+        
+        db.commit()
+        db.refresh(existing)
+        return existing
+    
+    db_warning = WarningAlert(
+        warning_number=warning.warning_number,
+        severity=warning.severity.value,
+        status=warning.status.value,
+        title=warning.title,
+        description=warning.description,
+        valid_from=warning.valid_from,
+        valid_until=warning.valid_until,
+        issued_at=warning.issued_at,
+        scraped_at=warning.scraped_at,
+    )
+    
+    db.add(db_warning)
+    db.commit()
+    db.refresh(db_warning)
+    
+    return db_warning
+
+
+def get_active_warnings(db: Session) -> list["WarningAlert"]:
+    """Get all currently active or upcoming warnings (EMITIDO + VIGENTE)."""
+    
+    return (
+        db.query(WarningAlert)
+        .filter(WarningAlert.status.in_(["emitido", "vigente"]))
+        .order_by(WarningAlert.severity.desc(), WarningAlert.valid_from)
+        .all()
+    )
+
+def get_warnings(
+    db: Session,
+    severity: str | None = None,
+    active_only: bool = True,
+    limit: int = 50,
+) -> list["WarningAlert"]:
+    """Get warnings with filters."""
+    
+    query = db.query(WarningAlert)
+    
+    if active_only:
+        # Filter by status field (not dates)
+        query = query.filter(WarningAlert.status.in_(["emitido", "vigente"]))
+    
+    if severity:
+        query = query.filter(WarningAlert.severity == severity)
+    
+    return query.order_by(WarningAlert.issued_at.desc()).limit(limit).all()
+
+
+def get_warning_by_number(db: Session, warning_number: str) -> "WarningAlert | None":
+    """Get warning by its official number."""
+    
+    return (
+        db.query(WarningAlert)
+        .filter(WarningAlert.warning_number == warning_number)
+        .first()
+    )
