@@ -32,6 +32,6 @@ class LocationForecast(BaseModel):
     location: str
     department: str
     full_name: str
-    forecasts: list[DailyForecast] = Field(min_length=1, max_length=3)
+    forecasts: list[DailyForecast] = Field(min_length=1, max_length=7)
     issued_at: datetime
     scraped_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
