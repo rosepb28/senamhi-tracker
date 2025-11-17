@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}SENAMHI Tracker - Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="mb-3">Weather Dashboard</h1>
+    </div>
+</div>
+
+
+<!-- Departments Section -->
+<div class="row">
+    <div class="col-12 mb-3">
+        <h3>📍 Select a Department</h3>
+        <p class="text-muted">Choose a department to view detailed forecasts and warnings</p>
+    </div>
+</div>
+
+<div class="row">
+    {% for department in departments %}
+    <div class="col-md-3 col-sm-6 mb-3">
+        <a href="{{ url_for('main.department', name=department) }}" class="text-decoration-none">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body text-center">
+                    <h5 class="card-title mb-0">{{ department }}</h5>
+                </div>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Last Updated Info -->
+<div class="alert alert-light border" role="alert">
+    <div class="row">
+        <div class="col-md-6">
+            <small class="text-muted">
+                <strong>Last forecast update:</strong>
+                {% if last_forecast_update %}
+                    {{ last_forecast_update.strftime('%Y-%m-%d %H:%M') }}
+                {% else %}
+                    Never
+                {% endif %}
+            </small>
+        </div>
+        <div class="col-md-6">
+            <small class="text-muted">
+                <strong>Last warnings update:</strong>
+                {% if last_warning_update %}
+                    {{ last_warning_update.strftime('%Y-%m-%d %H:%M') }}
+                {% else %}
+                    Never
+                {% endif %}
+            </small>
+        </div>
+    </div>
+    <hr class="my-2">
+    <small class="text-muted">
+        📝 To manually update data, run: <code>poetry run senamhi scrape</code>
+    </small>
+</div>
+{% endblock %}

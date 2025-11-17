@@ -22,8 +22,6 @@ services:
       - MAX_RETRIES=3
       - RETRY_DELAY_SECONDS=60
 
-      # Warning Limits
-      - MAX_WARNINGS=10
 
       # Logs
       - LOG_FILE=logs/scheduler.log

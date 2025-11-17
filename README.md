@@ -5,10 +5,12 @@ Web scraper and monitor for Peru's national weather service (SENAMHI) with histo
 ## Features
 
 - 🌍 **Multi-department scraping** - Scrape forecasts from all 24 Peruvian departments
-- 🚨 **Weather warnings** - Track active meteorological alerts (EMITIDO/VIGENTE/VENCIDO)
-- 📊 **Historical tracking** - Track how forecasts change over time
-- ⏰ **Automatic scheduling** - Run periodic scraping with configurable intervals
+- 🚨 **Weather warnings** - Track active meteorological alerts by department (EMITIDO/VIGENTE)
+- 🌐 **Web Dashboard** - Flask-based UI to visualize forecasts and warnings
+- 📊 **Multi-model comparison** - Compare SENAMHI with Open Meteo models (GFS & ECMWF)
+- 📈 **Interactive charts** - Visualize temperature and precipitation with Chart.js
 - 💾 **SQLite database** - Store and query forecast and warning history
+- ⏰ **Automatic scheduling** - Run periodic scraping with configurable intervals
 - 🖥️ **CLI interface** - Rich terminal interface with tables and colors
 - 🐳 **Docker support** - Easy deployment with Docker Compose
 - 📝 **Comprehensive logging** - Track all scraping operations
@@ -18,7 +20,8 @@ Web scraper and monitor for Peru's national weather service (SENAMHI) with histo
 ### Prerequisites
 
 - Python 3.12+
-- Poetry (for local development)
+- Poetry for dependency management
+- SQLite (included with Python)
 - Docker & Docker Compose (for containerized deployment)
 
 ### Installation (Local)
@@ -45,10 +48,10 @@ git clone https://github.com/rosepb28/senamhi-tracker.git
 cd senamhi-tracker
 
 # Start services
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ## Usage
@@ -127,6 +130,24 @@ poetry run senamhi runs --status success
 poetry run senamhi runs --limit 10
 ```
 
+#### Web Dashboard
+
+Start the web server:
+```bash
+poetry run senamhi web
+```
+
+Then visit:
+- **Homepage**: http://localhost:5000
+- **Department view**: http://localhost:5000/department/LIMA
+- **Interactive charts**: Click "📊 View Chart" on any location
+
+The dashboard provides:
+- Real-time SENAMHI forecasts by location
+- Active weather warnings by department
+- Interactive model comparison (SENAMHI vs GFS vs ECMWF)
+- Configurable forecast periods (3, 5, or 7 days)
+
 #### Utilities
 ```bash
 # List available departments
@@ -165,8 +186,6 @@ FORECAST_SCRAPE_INTERVAL=24      # Hours between forecast scrapes
 WARNING_SCRAPE_INTERVAL=6        # Hours between warning scrapes
 SCHEDULER_START_IMMEDIATELY=True # Run immediately on start
 
-# Warning Configuration
-MAX_WARNINGS=5                   # Maximum warnings to scrape per run
 
 # Advanced
 MAX_RETRIES=3                    # Retry attempts on failure
@@ -176,22 +195,48 @@ SCRAPE_DELAY=2.0                 # Seconds between locations
 
 See `.env.example` for all available options.
 
+### Location Coordinates
+
+Edit `config/coordinates.yaml` to add or update location coordinates for Open Meteo integration:
+```yaml
+LIMA:
+  LIMA ESTE: [-12.0464, -77.0428]
+  CANTA: [-11.4744, -76.6256]
+```
+
+Then populate the database:
+```bash
+poetry run python scripts/populate_coordinates.py --skip-existing
+```
+
+### Open Meteo Models
+
+Edit `config/openmeteo.yaml` to configure weather models and variables:
+```yaml
+models:
+  - id: gfs_seamless
+    name: GFS
+    colors:
+      temp: rgb(255, 99, 132)
+      precip: rgba(255, 99, 132, 0.7)
+```
+
 ## Project Structure
 ```
 senamhi-tracker/
 ├── app/
 │   ├── cli/              # CLI commands
-│   ├── models/           # Pydantic models
-│   ├── scrapers/         # Web scraping logic
-│   ├── scheduler/        # Scheduling system
-│   └── storage/          # Database models & CRUD
-├── alembic/              # Database migrations
-├── data/                 # SQLite database
-├── logs/                 # Application logs
+│   ├── scrapers/         # SENAMHI scraping logic
+│   ├── services/         # External API services (Open Meteo)
+│   ├── storage/          # Database models and CRUD
+│   ├── scheduler/        # Background jobs
+│   └── web/              # Flask web application
+├── config/
+│   ├── coordinates.yaml  # Location coordinates
+│   └── openmeteo.yaml    # Weather model configuration
+├── scripts/              # Utility scripts
 ├── tests/                # Test suite
-├── Dockerfile
-├── docker-compose.yml
-└── pyproject.toml
+└── data/                 # SQLite database
 ```
 
 ## Development
@@ -203,12 +248,6 @@ poetry run pytest -v
 
 ### Code Quality
 ```bash
-# Format code
-poetry run ruff format .
-
-# Lint code
-poetry run ruff check .
-
 # Fix + format
 poetry run ruff check . --fix && poetry run ruff format .
 
@@ -228,6 +267,18 @@ poetry run alembic upgrade head
 poetry run alembic downgrade -1
 ```
 
+### Cleanup
+```bash
+# Remove expired warnings
+poetry run python scripts/cleanup_old_warnings.py
+
+# Preview what would be deleted (dry run)
+poetry run python scripts/cleanup_old_warnings.py --dry-run
+
+# Reset database (⚠️ deletes all data)
+./scripts/reset_db.sh
+```
+
 ## Examples
 
 ### Monitor Lima weather and warnings automatically
@@ -238,7 +289,6 @@ ENABLE_SCHEDULER=True
 FORECAST_SCRAPE_INTERVAL=24
 WARNING_SCRAPE_INTERVAL=6
 DEPARTMENTS=LIMA
-MAX_WARNINGS=5
 EOF
 
 # Start
@@ -301,6 +351,15 @@ docker compose build --no-cache
 docker compose down -v
 ```
 
+## API Rate Limits
+
+⚠️ **Important**: Be mindful of rate limits when scraping:
+
+- **SENAMHI**: No official limit, but avoid excessive requests
+- **Open Meteo**: Free tier allows reasonable usage
+- Use the scheduler's configurable intervals to avoid abuse
+- Manual scraping should be done sparingly
+
 ## Contributing
 
 Contributions welcome! Please:
@@ -316,8 +375,9 @@ MIT License - see LICENSE file for details
 
 ## Acknowledgments
 
-- Data source: [SENAMHI Peru](https://www.senamhi.gob.pe)
-- Built with Python, SQLAlchemy, Typer, and Rich
+- Data provided by [SENAMHI](https://www.senamhi.gob.pe/)
+- Weather models from [Open Meteo](https://open-meteo.com/)
+- Built with Python, Flask, SQLAlchemy, and Chart.js
 
 ## Disclaimer
 

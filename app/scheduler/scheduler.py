@@ -6,7 +6,7 @@ import time
 
 import schedule
 
-from app.config import settings
+from config.config import settings
 from app.scheduler.jobs import run_forecast_scrape_job, run_warnings_scrape_job
 from app.scheduler.logger import setup_logger
 
@@ -42,7 +42,6 @@ class ForecastScheduler:
         logger.info(
             f"Warnings interval: Every {settings.warning_scrape_interval} hours"
         )
-        logger.info(f"Max warnings per scrape: {settings.max_warnings}")
         logger.info(f"Start immediately: {settings.scheduler_start_immediately}")
 
         if settings.scrape_all_departments:

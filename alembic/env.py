@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from app.config import settings
+from config.config import settings
 from app.database import Base
 from app.storage.models import Forecast, Location, ScrapeRun, WarningAlert  # noqa: F401
 

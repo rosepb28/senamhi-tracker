@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -21,6 +21,10 @@ class Location(Base):
     department: Mapped[str] = mapped_column(String, index=True)
     full_name: Mapped[str] = mapped_column(String)
     active: Mapped[bool] = mapped_column(default=True)
+
+    # Coordinates for Open Meteo integration
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -52,7 +56,7 @@ class Forecast(Base):
     temp_max: Mapped[int] = mapped_column(Integer)
     temp_min: Mapped[int] = mapped_column(Integer)
 
-    weather_icon: Mapped[str] = mapped_column(String)
+    icon_number: Mapped[int] = mapped_column(Integer)
     description: Mapped[str] = mapped_column(Text)
 
     issued_at: Mapped[datetime] = mapped_column(DateTime, index=True)
@@ -95,7 +99,8 @@ class WarningAlert(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
-    warning_number: Mapped[str] = mapped_column(String, index=True, unique=True)
+    warning_number: Mapped[str] = mapped_column(String, index=True)
+    department: Mapped[str] = mapped_column(String, index=True)
     severity: Mapped[str] = mapped_column(String, index=True)
     status: Mapped[str] = mapped_column(String, index=True)
 

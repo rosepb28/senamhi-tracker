@@ -5,7 +5,7 @@ from datetime import datetime
 import requests
 from rich.console import Console
 
-from app.config import settings
+from config.config import settings
 from app.models.warning import Warning, WarningSeverity, WarningStatus
 
 console = Console()
@@ -14,14 +14,40 @@ console = Console()
 class WarningScraper:
     """Scraper for SENAMHI weather warnings."""
 
-    API_URL = (
-        "https://www.senamhi.gob.pe/app_senamhi/sisper/api/avisoMeteoroCabEmergencia/15"
-    )
+    # Department ID mapping
+    DEPARTMENT_IDS = {
+        "AMAZONAS": "01",
+        "ANCASH": "02",
+        "APURIMAC": "03",
+        "AREQUIPA": "04",
+        "AYACUCHO": "05",
+        "CAJAMARCA": "06",
+        "CALLAO": "07",
+        "CUSCO": "08",
+        "HUANCAVELICA": "09",
+        "HUANUCO": "10",
+        "ICA": "11",
+        "JUNIN": "12",
+        "LA LIBERTAD": "13",
+        "LAMBAYEQUE": "14",
+        "LIMA": "15",
+        "LORETO": "16",
+        "MADRE DE DIOS": "17",
+        "MOQUEGUA": "18",
+        "PASCO": "19",
+        "PIURA": "20",
+        "PUNO": "21",
+        "SAN MARTIN": "22",
+        "TACNA": "23",
+        "TUMBES": "24",
+        "UCAYALI": "25",
+    }
 
     def __init__(self):
         """Initialize scraper."""
         self.timeout = settings.request_timeout
         self.user_agent = settings.user_agent
+        self.api_base = settings.senamhi_warnings_api
 
     def _parse_senamhi_datetime(self, date_str: str) -> datetime:
         """Parse SENAMHI datetime format: DD/MM/YYYY HH:MM:SS."""
@@ -29,7 +55,6 @@ class WarningScraper:
 
     def _map_severity(self, nivel: str, color: str) -> WarningSeverity:
         """Map severity level to enum."""
-        # Use color as primary indicator
         color_upper = color.upper()
 
         if color_upper == "VERDE":
@@ -41,7 +66,6 @@ class WarningScraper:
         elif color_upper == "ROJO":
             return WarningSeverity.RED
         else:
-            # Fallback to nivel
             nivel_map = {
                 "1": WarningSeverity.GREEN,
                 "2": WarningSeverity.YELLOW,
@@ -50,78 +74,8 @@ class WarningScraper:
             }
             return nivel_map.get(str(nivel), WarningSeverity.YELLOW)
 
-    def _parse_warning(self, aviso_data: dict) -> Warning | None:
+    def _parse_warning(self, aviso_data: dict, department: str) -> Warning | None:
         """Parse warning from API response."""
-        try:
-            # Parse dates
-            issued_at = self._parse_senamhi_datetime(aviso_data["fechaEmision"])
-            valid_from = self._parse_senamhi_datetime(aviso_data["fechaInicio"])
-            valid_until = self._parse_senamhi_datetime(aviso_data["fechaFin"])
-
-            # Check if active or upcoming
-            if not self._is_active_or_upcoming(valid_from, valid_until):
-                return None
-
-            # Map severity
-            severity = self._map_severity(aviso_data["nivel"], aviso_data["colorNivel"])
-
-            return Warning(
-                warning_number=aviso_data["numero"],
-                severity=severity,
-                title=aviso_data["titulo"],
-                description=aviso_data["descripcion"],
-                valid_from=valid_from,
-                valid_until=valid_until,
-                issued_at=issued_at,
-            )
-
-        except Exception as e:
-            console.print(f"[yellow]Failed to parse warning: {e}[/yellow]")
-            return None
-
-    def scrape_warnings(self) -> list[Warning]:
-        """Scrape warnings (active + recent past) with limit."""
-        try:
-            headers = {
-                "User-Agent": self.user_agent,
-            }
-
-            response = requests.get(self.API_URL, headers=headers, timeout=self.timeout)
-            response.raise_for_status()
-
-            data = response.json()
-
-            if "Avisos" not in data:
-                console.print("[yellow]No warnings found in API response[/yellow]")
-                return []
-
-            # Parse ALL warnings from API (active and past)
-            warnings = []
-            for aviso in data["Avisos"]:
-                warning = self._parse_warning_without_filter(aviso)
-                if warning:
-                    warnings.append(warning)
-
-            # Sort by issued_at (most recent first)
-            warnings.sort(key=lambda w: w.issued_at, reverse=True)
-
-            # Apply limit
-            limited_warnings = warnings[: settings.max_warnings]
-
-            if len(warnings) > settings.max_warnings:
-                console.print(
-                    f"[dim]Limited to {settings.max_warnings} most recent warnings "
-                    f"(out of {len(warnings)} total)[/dim]"
-                )
-
-            return limited_warnings
-
-        except Exception as e:
-            console.print(f"[red]Error scraping warnings: {e}[/red]")
-            return []
-
-    def _parse_warning_without_filter(self, aviso_data: dict) -> Warning | None:
-        """Parse warning from API response without date filtering."""
         try:
             # Skip forest fire warnings
             titulo = aviso_data["titulo"]
@@ -143,8 +97,13 @@ class WarningScraper:
             else:
                 status = WarningStatus.VENCIDO
 
+            # Only scrape EMITIDO and VIGENTE
+            if status == WarningStatus.VENCIDO:
+                return None
+
             return Warning(
                 warning_number=aviso_data["numero"],
+                department=department,
                 severity=severity,
                 status=status,
                 title=aviso_data["titulo"],
@@ -157,3 +116,64 @@ class WarningScraper:
         except Exception as e:
             console.print(f"[yellow]Failed to parse warning: {e}[/yellow]")
             return None
+
+    def scrape_warnings_for_department(self, department: str) -> list[Warning]:
+        """Scrape warnings for a specific department."""
+        dept_upper = department.upper()
+
+        if dept_upper not in self.DEPARTMENT_IDS:
+            console.print(f"[yellow]Unknown department: {department}[/yellow]")
+            return []
+
+        dept_id = self.DEPARTMENT_IDS[dept_upper]
+        url = f"{self.api_base}/{dept_id}"
+
+        try:
+            headers = {"User-Agent": self.user_agent}
+            response = requests.get(url, headers=headers, timeout=self.timeout)
+            response.raise_for_status()
+
+            data = response.json()
+
+            if "Avisos" not in data:
+                return []
+
+            warnings = []
+            for aviso in data["Avisos"]:
+                warning = self._parse_warning(aviso, dept_upper)
+                if warning:
+                    warnings.append(warning)
+
+            return warnings
+
+        except Exception as e:
+            console.print(f"[red]Error scraping {department}: {e}[/red]")
+            return []
+
+    def scrape_warnings(self, departments: list[str] | None = None) -> list[Warning]:
+        """Scrape warnings for multiple departments."""
+        if departments is None:
+            departments = settings.get_departments_list()
+            if not departments or settings.scrape_all_departments:
+                departments = list(self.DEPARTMENT_IDS.keys())
+
+        all_warnings = []
+        seen_combinations = set()
+
+        for department in departments:
+            console.print(f"[dim]Scraping warnings for {department}...[/dim]")
+
+            dept_warnings = self.scrape_warnings_for_department(department)
+
+            # Deduplicate by (warning_number, department) combination
+            for warning in dept_warnings:
+                combination = (warning.warning_number, warning.department)
+                if combination not in seen_combinations:
+                    all_warnings.append(warning)
+                    seen_combinations.add(combination)
+
+        # Sort by issued_at (most recent first)
+        all_warnings.sort(key=lambda w: w.issued_at, reverse=True)
+
+        # NO limit - return all active warnings
+        return all_warnings

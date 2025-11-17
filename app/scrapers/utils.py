@@ -1,8 +1,6 @@
 import re
 from datetime import date, datetime
 
-from app.models.forecast import WeatherIcon
-
 
 def parse_temperature(text: str) -> int:
     """Extract temperature value from text like '22ºC'."""
@@ -83,23 +81,3 @@ def parse_issued_date(issued_text: str) -> datetime:
         raise ValueError(f"Unknown month: {month_name}")
 
     return datetime(year, month, day)
-
-
-def extract_icon_type(icon_url: str) -> WeatherIcon:
-    """Map SENAMHI icon filename to WeatherIcon enum."""
-    icon_map = {
-        "icon001": WeatherIcon.CLEAR,
-        "icon002": WeatherIcon.PARTLY_CLOUDY,
-        "icon003": WeatherIcon.PARTLY_CLOUDY,
-        "icon004": WeatherIcon.CLOUDY,
-        "icon005": WeatherIcon.CLOUDY,
-        "icon006": WeatherIcon.RAIN,
-        "icon007": WeatherIcon.RAIN,
-        "icon008": WeatherIcon.STORM,
-    }
-
-    for key, value in icon_map.items():
-        if key in icon_url:
-            return value
-
-    return WeatherIcon.UNKNOWN

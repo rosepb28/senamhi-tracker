@@ -4,7 +4,7 @@ import time
 import traceback
 
 from app.cli.commands import _run_warnings_scrape
-from app.config import settings
+from config.config import settings
 from app.database import SessionLocal
 from app.scrapers.forecast_scraper import ForecastScraper
 from app.scheduler.logger import setup_logger

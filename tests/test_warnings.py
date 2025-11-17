@@ -34,6 +34,7 @@ def test_save_warning(db_session):
 
     warning = Warning(
         warning_number="001",
+        department="LIMA",
         severity=WarningSeverity.YELLOW,
         status=WarningStatus.VIGENTE,
         title="Lluvias moderadas",
@@ -47,6 +48,7 @@ def test_save_warning(db_session):
 
     assert db_warning.id is not None
     assert db_warning.warning_number == "001"
+    assert db_warning.department == "LIMA"
     assert db_warning.severity == "amarillo"
     assert db_warning.status == "vigente"
 
@@ -58,6 +60,7 @@ def test_get_active_warnings(db_session):
     # Active warning
     warning1 = Warning(
         warning_number="001",
+        department="LIMA",
         severity=WarningSeverity.YELLOW,
         status=WarningStatus.VIGENTE,
         title="Active Warning",
@@ -70,6 +73,7 @@ def test_get_active_warnings(db_session):
     # Expired warning
     warning2 = Warning(
         warning_number="002",
+        department="LIMA",
         severity=WarningSeverity.RED,
         status=WarningStatus.VENCIDO,
         title="Expired Warning",
@@ -88,12 +92,50 @@ def test_get_active_warnings(db_session):
     assert active[0].warning_number == "001"
 
 
+def test_get_active_warnings_by_department(db_session):
+    """Test retrieving active warnings filtered by department."""
+    now = datetime.now()
+
+    warning_lima = Warning(
+        warning_number="001",
+        department="LIMA",
+        severity=WarningSeverity.YELLOW,
+        status=WarningStatus.VIGENTE,
+        title="Lima Warning",
+        description="Test",
+        valid_from=now,
+        valid_until=now + timedelta(days=1),
+        issued_at=now,
+    )
+
+    warning_cusco = Warning(
+        warning_number="002",
+        department="CUSCO",
+        severity=WarningSeverity.ORANGE,
+        status=WarningStatus.VIGENTE,
+        title="Cusco Warning",
+        description="Test",
+        valid_from=now,
+        valid_until=now + timedelta(days=1),
+        issued_at=now,
+    )
+
+    crud.save_warning(db_session, warning_lima)
+    crud.save_warning(db_session, warning_cusco)
+
+    lima_warnings = crud.get_active_warnings(db_session, department="LIMA")
+
+    assert len(lima_warnings) == 1
+    assert lima_warnings[0].department == "LIMA"
+
+
 def test_update_existing_warning(db_session):
     """Test updating existing warning."""
     now = datetime.now()
 
     warning = Warning(
         warning_number="001",
+        department="LIMA",
         severity=WarningSeverity.YELLOW,
         status=WarningStatus.EMITIDO,
         title="Original Title",
@@ -114,9 +156,44 @@ def test_update_existing_warning(db_session):
     assert updated.title == "Updated Title"
     assert updated.severity == "naranja"
 
-    # Should only be one record
+    # Should only be one record for this department
     all_warnings = crud.get_warnings(db_session, active_only=False)
     assert len(all_warnings) == 1
+
+
+def test_same_warning_different_departments(db_session):
+    """Test that same warning number can exist in different departments."""
+    now = datetime.now()
+
+    warning_lima = Warning(
+        warning_number="001",
+        department="LIMA",
+        severity=WarningSeverity.YELLOW,
+        status=WarningStatus.VIGENTE,
+        title="Test Warning",
+        description="Test",
+        valid_from=now,
+        valid_until=now + timedelta(days=1),
+        issued_at=now,
+    )
+
+    warning_cusco = Warning(
+        warning_number="001",  # Same number
+        department="CUSCO",  # Different department
+        severity=WarningSeverity.ORANGE,
+        status=WarningStatus.VIGENTE,
+        title="Test Warning",
+        description="Test",
+        valid_from=now,
+        valid_until=now + timedelta(days=1),
+        issued_at=now,
+    )
+
+    crud.save_warning(db_session, warning_lima)
+    crud.save_warning(db_session, warning_cusco)
+
+    all_warnings = crud.get_warnings(db_session, active_only=False)
+    assert len(all_warnings) == 2
 
 
 def test_get_warning_by_number(db_session):
@@ -125,6 +202,7 @@ def test_get_warning_by_number(db_session):
 
     warning = Warning(
         warning_number="123",
+        department="LIMA",
         severity=WarningSeverity.YELLOW,
         status=WarningStatus.VIGENTE,
         title="Test",
@@ -136,9 +214,10 @@ def test_get_warning_by_number(db_session):
 
     crud.save_warning(db_session, warning)
 
-    found = crud.get_warning_by_number(db_session, "123")
+    found = crud.get_warning_by_number(db_session, "123", "LIMA")
     assert found is not None
     assert found.warning_number == "123"
+    assert found.department == "LIMA"
 
     not_found = crud.get_warning_by_number(db_session, "999")
     assert not_found is None
@@ -150,6 +229,7 @@ def test_filter_emitido_warnings(db_session):
 
     warning = Warning(
         warning_number="001",
+        department="LIMA",
         severity=WarningSeverity.ORANGE,
         status=WarningStatus.EMITIDO,
         title="Upcoming Warning",

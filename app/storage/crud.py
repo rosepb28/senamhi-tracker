@@ -47,11 +47,13 @@ def save_forecast(
     for daily in location_forecast.forecasts:
         db_forecast = Forecast(
             location_id=db_location.id,
-            forecast_date=daily.date,
+            forecast_date=daily.date.date()
+            if isinstance(daily.date, datetime)
+            else daily.date,
             day_name=daily.day_name,
             temp_max=daily.temp_max,
             temp_min=daily.temp_min,
-            weather_icon=daily.weather_icon.value,
+            icon_number=daily.icon_number,
             description=daily.description,
             issued_at=location_forecast.issued_at,
             scraped_at=location_forecast.scraped_at,
@@ -155,15 +157,35 @@ def delete_forecasts_by_issue_date(
     db: Session, issued_at: datetime, department: str | None = None
 ) -> int:
     """Delete all forecasts for a specific issue date."""
-    query = db.query(Forecast).filter(Forecast.issued_at == issued_at)
-
     if department:
-        query = query.join(Location).filter(Location.department == department)
+        # Get location IDs for this department first
+        location_ids = (
+            db.query(Location.id)
+            .filter(Location.department == department.upper())
+            .all()
+        )
+        location_ids = [loc_id[0] for loc_id in location_ids]
 
-    count = query.count()
-    query.delete(synchronize_session=False)
+        if not location_ids:
+            return 0
+
+        # Delete forecasts for these locations
+        count = (
+            db.query(Forecast)
+            .filter(
+                Forecast.issued_at == issued_at, Forecast.location_id.in_(location_ids)
+            )
+            .delete(synchronize_session=False)
+        )
+    else:
+        # Delete all forecasts for this issue date
+        count = (
+            db.query(Forecast)
+            .filter(Forecast.issued_at == issued_at)
+            .delete(synchronize_session=False)
+        )
+
     db.commit()
-
     return count
 
 
@@ -225,9 +247,13 @@ def get_scrape_runs(
 def save_warning(db: Session, warning: Warning) -> WarningAlert:
     """Save warning to database."""
 
+    # Check if warning already exists for this department
     existing = (
         db.query(WarningAlert)
-        .filter(WarningAlert.warning_number == warning.warning_number)
+        .filter(
+            WarningAlert.warning_number == warning.warning_number,
+            WarningAlert.department == warning.department,
+        )
         .first()
     )
 
@@ -247,6 +273,7 @@ def save_warning(db: Session, warning: Warning) -> WarningAlert:
 
     db_warning = WarningAlert(
         warning_number=warning.warning_number,
+        department=warning.department,
         severity=warning.severity.value,
         status=warning.status.value,
         title=warning.title,
@@ -264,15 +291,31 @@ def save_warning(db: Session, warning: Warning) -> WarningAlert:
     return db_warning
 
 
-def get_active_warnings(db: Session) -> list["WarningAlert"]:
-    """Get all currently active or upcoming warnings (EMITIDO + VIGENTE)."""
+def get_active_warnings(
+    db: Session, department: str | None = None
+) -> list["WarningAlert"]:
+    """Get all currently active or upcoming warnings (EMITIDO + VIGENTE, not expired)."""
 
-    return (
-        db.query(WarningAlert)
-        .filter(WarningAlert.status.in_(["emitido", "vigente"]))
-        .order_by(WarningAlert.severity.desc(), WarningAlert.valid_from)
-        .all()
+    now = datetime.now()
+
+    query = db.query(WarningAlert).filter(
+        WarningAlert.status.in_(["emitido", "vigente"]),
+        WarningAlert.valid_until >= now,  # ← Solo avisos vigentes
     )
+
+    if department:
+        query = query.filter(WarningAlert.department == department.upper())
+
+    warnings = query.all()
+
+    def sort_key(w):
+        # VIGENTE = 0, EMITIDO = 1 (VIGENTE first)
+        status_priority = 0 if w.status == "vigente" else 1
+        # Time difference from now (absolute value, closest = smallest)
+        time_diff = abs((w.valid_from - now).total_seconds())
+        return (status_priority, time_diff)
+
+    return sorted(warnings, key=sort_key)
 
 
 def get_warnings(
@@ -295,11 +338,14 @@ def get_warnings(
     return query.order_by(WarningAlert.issued_at.desc()).limit(limit).all()
 
 
-def get_warning_by_number(db: Session, warning_number: str) -> "WarningAlert | None":
-    """Get warning by its official number."""
+def get_warning_by_number(
+    db: Session, warning_number: str, department: str | None = None
+) -> "WarningAlert | None":
+    """Get warning by its official number and optionally department."""
 
-    return (
-        db.query(WarningAlert)
-        .filter(WarningAlert.warning_number == warning_number)
-        .first()
-    )
+    query = db.query(WarningAlert).filter(WarningAlert.warning_number == warning_number)
+
+    if department:
+        query = query.filter(WarningAlert.department == department.upper())
+
+    return query.first()

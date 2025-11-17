@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models.forecast import DailyForecast, LocationForecast, WeatherIcon
+from app.models.forecast import DailyForecast, LocationForecast
 from app.storage import crud
 
 TEST_DATABASE_URL = "sqlite:///./test_storage.db"
@@ -54,17 +54,16 @@ def test_save_forecast(db_session):
                 day_name="miércoles",
                 temp_max=22,
                 temp_min=9,
-                weather_icon=WeatherIcon.PARTLY_CLOUDY,
+                icon_number=2,
                 description="Test description",
             )
         ],
     )
 
-    forecasts = crud.save_forecast(db_session, pydantic_forecast)
+    saved = crud.save_forecast(db_session, pydantic_forecast)
 
-    assert len(forecasts) == 1
-    assert forecasts[0].temp_max == 22
-    assert forecasts[0].temp_min == 9
+    assert len(saved) == 1
+    assert saved[0].temp_max == 22
 
 
 def test_get_locations(db_session):
@@ -90,7 +89,7 @@ def test_get_latest_forecasts(db_session):
                 day_name="miércoles",
                 temp_max=22,
                 temp_min=9,
-                weather_icon=WeatherIcon.CLEAR,
+                icon_number=0,
                 description="Test",
             )
         ],
@@ -98,6 +97,8 @@ def test_get_latest_forecasts(db_session):
 
     crud.save_forecast(db_session, pydantic_forecast)
 
-    latest = crud.get_latest_forecasts(db_session)
+    location = crud.get_location_by_name(db_session, "CANTA")
+    forecasts = crud.get_latest_forecasts(db_session, location_id=location.id)
 
-    assert len(latest) >= 1
+    assert len(forecasts) == 1
+    assert forecasts[0].temp_max == 22

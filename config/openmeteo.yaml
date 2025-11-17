@@ -1,0 +1,47 @@
+# Open Meteo Configuration
+
+url: "https://api.open-meteo.com/v1/forecast"
+
+# Models to use
+models:
+  - id: gfs_seamless
+    name: GFS
+    colors:
+      temp: rgb(255, 99, 132)
+      temp_bg: rgba(255, 99, 132, 0.1)
+      precip: rgba(255, 99, 132, 0.7)
+      wind: rgba(255, 159, 64, 0.3)
+      wind_border: rgba(255, 159, 64, 0.6)
+
+  - id: ecmwf_ifs
+    name: ECMWF
+    colors:
+      temp: rgb(54, 162, 235)
+      temp_bg: rgba(54, 162, 235, 0.1)
+      precip: rgba(54, 162, 235, 0.7)
+      wind: rgba(75, 192, 192, 0.3)
+      wind_border: rgba(75, 192, 192, 0.6)
+
+# Variables to fetch and display
+variables:
+  - id: temperature_2m
+    name: Temperature
+    unit: °C
+    axis: temp
+    symbol: "—"
+
+  - id: precipitation
+    name: Precipitation
+    unit: mm
+    axis: precip
+    symbol: "▬"
+
+  - id: wind_speed_10m
+    name: Wind Speed
+    unit: km/h
+    axis: wind
+    symbol: "░"
+
+# Forecast settings
+forecast_days: 7
+timezone: America/Lima

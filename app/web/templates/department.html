@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}{{ department }} - SENAMHI Tracker{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>{{ department }}</h1>
+        <a href="{{ url_for('main.index') }}" class="btn btn-sm btn-outline-primary">← Back to all departments</a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column: Forecasts (larger) -->
+    <div class="col-lg-8">
+        <h3>📍 Forecasts by Location</h3>
+
+        {% for item in locations %}
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ item.location.location }}</h5>
+                {% if item.openmeteo and item.openmeteo.models %}
+                <button class="btn btn-sm btn-primary"
+                        type="button"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modal-{{ loop.index }}">
+                    📊 View Chart
+                </button>
+                {% endif %}
+            </div>
+
+            <div class="card-body">
+                <!-- SENAMHI Forecast Table -->
+                <!-- <h6 class="text-muted mb-2">SENAMHI Forecast</h6> -->
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Max</th>
+                            <th>Min</th>
+                            <th>Weather</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for forecast in item.forecasts %}
+                        <tr>
+                            <td>{{ forecast.forecast_date.strftime('%Y-%m-%d') }}</td>
+                            <td class="text-danger">{{ forecast.temp_max }}°C</td>
+                            <td class="text-primary">{{ forecast.temp_min }}°C</td>
+                            <td>
+                                <img src="https://www.senamhi.gob.pe/public/images/icono/100x100/icon{{ '%03d' % forecast.icon_number }}.png"
+                                     alt="Weather icon"
+                                     width="32"
+                                     height="32">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+</div>
+
+        <!-- Modal for Chart -->
+        {% if item.openmeteo and item.openmeteo.models %}
+        <div class="modal fade" id="modal-{{ loop.index }}" tabindex="-1" aria-labelledby="modalLabel-{{ loop.index }}" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalLabel-{{ loop.index }}">
+                            {{ item.location.location }} - Weather Models Comparison
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-3 align-items-center">
+                            <!-- Model Selection with Color Badges -->
+                            <div class="col-md-8">
+                                <strong>Models:</strong>
+                                <div class="mt-2">
+                                    {% set outer_index = loop.index %}
+                                    {% for model in openmeteo_config.models %}
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input model-toggle"
+                                            type="checkbox"
+                                            id="{{ model.id }}-modal-{{ outer_index }}"
+                                            value="{{ model.id }}"
+                                            data-chart="modal-chart-{{ outer_index }}"
+                                            checked>
+                                        <label class="form-check-label d-flex align-items-center" for="{{ model.id }}-modal-{{ outer_index }}">
+                                            <span class="d-inline-block me-2" style="background-color: {{ model.colors.temp }}; width: 20px; height: 12px; border: 1px solid #ddd;"></span>
+                                            {{ model.name }}
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- Forecast Days Selection (Compact) -->
+                            <div class="col-md-4">
+                                <strong>Forecast Period:</strong>
+                                <select class="form-select form-select-sm mt-2 days-select"
+                                        data-chart="modal-chart-{{ loop.index }}"
+                                        style="max-width: 150px;">
+                                    <option value="3" selected>3 days</option>
+                                    <option value="5">5 days</option>
+                                    <option value="7">7 days</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Legend -->
+                        <div class="mb-3 p-2 bg-light rounded">
+                            <small class="text-muted">
+                                <strong>Legend:</strong>
+                                <span class="ms-3">— Temperature</span>
+                                <span class="ms-3">▬ Precipitation</span>
+                            </small>
+                        </div>
+
+                        <!-- Chart Canvas (Larger) -->
+                        <div style="height: 500px;">
+                            <canvas id="modal-chart-{{ loop.index }}"></canvas>
+                        </div>
+
+                        <!-- Store data and config in script tags -->
+                        <script type="application/json" id="modal-chart-data-{{ loop.index }}">
+                            {{ item.openmeteo | tojson }}
+                        </script>
+                        <script type="application/json" id="modal-chart-config-{{ loop.index }}">
+                            {{ openmeteo_config | tojson }}
+                        </script>
+                    </div>
+                    <div class="modal-footer">
+                        <small class="text-muted me-auto">Hourly forecast from Open Meteo API (GFS & ECMWF models)</small>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% endfor %}
+    </div>
+
+    <!-- Right Column: Warnings (smaller, sticky) -->
+    <div class="col-lg-4">
+        <div class="sticky-top" style="top: 20px;">
+            <h3>🚨 Warnings</h3>
+
+            {% if warnings %}
+                {% for warning in warnings %}
+                <div class="alert alert-severity-{{ warning.severity }} mb-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <strong>#{{ warning.warning_number }}</strong>
+                        <div>
+                            <span class="badge bg-{% if warning.status == 'emitido' %}primary{% else %}danger{% endif %} me-1">
+                                {{ warning.status|upper }}
+                            </span>
+                            <span class="badge" style="background-color: {% if warning.severity == 'rojo' %}#dc3545{% elif warning.severity == 'naranja' %}#fd7e14{% elif warning.severity == 'amarillo' %}#ffc107{% else %}#198754{% endif %};">
+                                {{ warning.severity|upper }}
+                            </span>
+                        </div>
+                    </div>
+                    <h6 class="mb-2">{{ warning.title }}</h6>
+                    <small class="text-muted d-block">
+                        Valid: {{ warning.valid_from.strftime('%Y-%m-%d') }} to {{ warning.valid_until.strftime('%Y-%m-%d') }}
+                    </small>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-success" role="alert">
+                    <small>✓ No active warnings</small>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}

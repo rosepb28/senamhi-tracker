@@ -27,6 +27,7 @@ class Warning(BaseModel):
     """Weather warning/alert."""
 
     warning_number: str
+    department: str
     severity: WarningSeverity
     status: WarningStatus
     title: str

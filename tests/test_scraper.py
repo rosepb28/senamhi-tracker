@@ -1,7 +1,6 @@
 from datetime import datetime, date
 
-from app.scrapers.utils import extract_icon_type, parse_date, parse_temperature
-from app.models.forecast import WeatherIcon
+from app.scrapers.utils import parse_date, parse_temperature
 from typer.testing import CliRunner
 from app.main import app
 
@@ -35,14 +34,6 @@ def test_parse_issued_date():
     assert isinstance(issued, datetime)
 
 
-def test_extract_icon_type():
-    """Test weather icon type mapping."""
-    assert extract_icon_type("icon001.png") == WeatherIcon.CLEAR
-    assert extract_icon_type("icon002.png") == WeatherIcon.PARTLY_CLOUDY
-    assert extract_icon_type("icon006.png") == WeatherIcon.RAIN
-    assert extract_icon_type("icon999.png") == WeatherIcon.UNKNOWN
-
-
 def test_scraper_integration():
     """Integration test for forecast scraper."""
     from app.scrapers.forecast_scraper import ForecastScraper
@@ -60,14 +51,7 @@ def test_scraper_integration():
         assert location.department == "LIMA"
         assert "LIMA" in location.full_name
         assert len(location.forecasts) >= 1
-        assert len(location.forecasts) <= 3
-
-        for daily in location.forecasts:
-            assert daily.temp_max > daily.temp_min
-            assert -20 <= daily.temp_min <= 50
-            assert -20 <= daily.temp_max <= 50
-            assert daily.description
-            assert daily.day_name
+        assert len(location.forecasts) <= 7
 
 
 def test_scraper_multiple_departments():

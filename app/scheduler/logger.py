@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-from app.config import settings
+from config.config import settings
 
 
 def setup_logger(name: str = "senamhi.scheduler") -> logging.Logger:

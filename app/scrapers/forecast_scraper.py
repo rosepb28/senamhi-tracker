@@ -5,9 +5,9 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 
-from app.config import settings
+from config.config import settings
 from app.models.forecast import DailyForecast, LocationForecast
-from app.scrapers.utils import extract_icon_type, parse_date, parse_temperature
+from app.scrapers.utils import parse_date, parse_temperature
 
 from rich.console import Console
 
@@ -48,9 +48,13 @@ class ForecastScraper:
         date_text = cols[0].get_text(strip=True)
         date = parse_date(date_text)
 
+        # Extract icon number from image src
         img_tag = cols[1].find("img")
         icon_url = img_tag["src"] if img_tag else ""
-        weather_icon = extract_icon_type(icon_url)
+
+        # Extract number from URL like: /public/images/icono/100x100/icon005.png
+        icon_match = re.search(r"icon(\d+)\.png", icon_url)
+        icon_number = int(icon_match.group(1)) if icon_match else 0
 
         temp_max_text = cols[2].get_text(strip=True)
         temp_max = parse_temperature(temp_max_text)
@@ -65,7 +69,7 @@ class ForecastScraper:
             day_name=date_text.split(",")[0].strip(),
             temp_max=temp_max,
             temp_min=temp_min,
-            weather_icon=weather_icon,
+            icon_number=icon_number,
             description=description,
         )
 

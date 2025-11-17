@@ -10,8 +10,12 @@ class Settings(BaseSettings):
     app_name: str = "SENAMHI Tracker"
     app_version: str = "0.1.0"
 
+    # SENAMHI URLs
     senamhi_base_url: str = "https://www.senamhi.gob.pe"
     senamhi_forecast_url: str = "https://www.senamhi.gob.pe/?p=pronostico-meteorologico"
+    senamhi_warnings_api: str = (
+        "https://www.senamhi.gob.pe/app_senamhi/sisper/api/avisoMeteoroCabEmergencia"
+    )
 
     database_url: str = "sqlite:///./data/weather.db"
 
@@ -20,7 +24,7 @@ class Settings(BaseSettings):
     request_timeout: int = 30
     user_agent: str = "SENAMHI-Tracker/0.1.0 (Educational Project)"
 
-    scrape_all_departments: bool = False
+    scrape_all_departments: bool = True
     departments: str = "LIMA"
 
     # Scheduler configuration
@@ -37,11 +41,15 @@ class Settings(BaseSettings):
     forecast_scrape_interval: int = 24
     warning_scrape_interval: int = 6
 
-    # Warning scraping limits
-    max_warnings: int = 5
+    # Web server
+    web_host: str = "127.0.0.1"
+    web_port: int = 5000
+    web_debug: bool = True
 
     def get_departments_list(self) -> list[str]:
         """Parse departments from comma-separated string."""
+        if self.scrape_all_departments:
+            return []  # Return empty list to signal "all departments"
         return [d.strip().upper() for d in self.departments.split(",")]
 
 

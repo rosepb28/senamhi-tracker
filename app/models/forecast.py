@@ -1,29 +1,25 @@
-from datetime import UTC, date, datetime
-from enum import Enum
+from datetime import UTC, datetime
 
-from pydantic import BaseModel, Field
-
-
-class WeatherIcon(str, Enum):
-    """Weather icon types from SENAMHI."""
-
-    CLEAR = "clear"
-    PARTLY_CLOUDY = "partly_cloudy"
-    CLOUDY = "cloudy"
-    RAIN = "rain"
-    STORM = "storm"
-    UNKNOWN = "unknown"
+from pydantic import BaseModel, Field, field_validator
 
 
 class DailyForecast(BaseModel):
-    """Single day weather forecast."""
+    """Daily weather forecast."""
 
-    date: date
+    date: datetime
     day_name: str
-    temp_max: int = Field(ge=-20, le=50)
-    temp_min: int = Field(ge=-20, le=50)
-    weather_icon: WeatherIcon = WeatherIcon.UNKNOWN
+    temp_max: int
+    temp_min: int
     description: str
+    icon_number: int
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def parse_date(cls, v):
+        """Parse date from string."""
+        if isinstance(v, str):
+            return datetime.strptime(v, "%Y-%m-%d")
+        return v
 
 
 class LocationForecast(BaseModel):

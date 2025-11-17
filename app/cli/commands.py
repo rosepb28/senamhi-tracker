@@ -8,11 +8,12 @@ from rich.console import Console
 from rich.table import Table
 from sqlalchemy import func
 
-from app.config import settings
+from config.config import settings
 from app.database import SessionLocal
 from app.scrapers.forecast_scraper import ForecastScraper
 from app.storage import crud
 from app.scrapers.warning_scraper import WarningScraper
+from scripts.populate_coordinates import populate_coordinates
 
 app = typer.Typer()
 scrape_app = typer.Typer(help="Scrape weather data from SENAMHI")
@@ -41,10 +42,11 @@ def scrape_forecasts(
 ):
     """Scrape weather forecasts only."""
     _run_forecast_scrape(departments, all_departments, force)
+    populate_coordinates(skip_existing=True)
 
 
 @scrape_app.command(name="warnings")
-def scrape_warnings(
+def scrape_warnings_cmd(
     force: Annotated[
         bool, typer.Option("--force", "-f", help="Force scrape even if data exists")
     ] = False,
@@ -60,7 +62,7 @@ def _run_warnings_scrape(force: bool):
 
     try:
         console.print("[yellow]Fetching warnings from SENAMHI...[/yellow]")
-        console.print(f"[dim]Max warnings: {settings.max_warnings}[/dim]\n")
+        console.print("[dim]Scraping only EMITIDO and VIGENTE warnings[/dim]\n")
 
         scraper = WarningScraper()
         warnings = scraper.scrape_warnings()
@@ -69,22 +71,24 @@ def _run_warnings_scrape(force: bool):
             console.print("[yellow]No active warnings found.[/yellow]")
             return
 
-        console.print(f"[green]Found {len(warnings)} warnings[/green]\n")
+        console.print(f"[green]Found {len(warnings)} active warnings[/green]\n")
 
         saved_count = 0
         updated_count = 0
 
         for warning in warnings:
-            existing = crud.get_warning_by_number(db, warning.warning_number)
+            existing = crud.get_warning_by_number(
+                db, warning.warning_number, warning.department
+            )
 
             if existing and not force:
                 console.print(
-                    f"  [dim]Skip[/dim] Warning #{warning.warning_number} "
+                    f"  [dim]Skip[/dim] Warning #{warning.warning_number} ({warning.department}) "
                     f"(already exists, use --force to update)"
                 )
                 continue
 
-            # saved = crud.save_warning(db, warning)
+            crud.save_warning(db, warning)
 
             if existing:
                 updated_count += 1
@@ -94,8 +98,8 @@ def _run_warnings_scrape(force: bool):
                 status = "Saved"
 
             console.print(
-                f"  [dim]{status}[/dim] Warning #{warning.warning_number}: "
-                f"{warning.title[:50]}... "
+                f"  [dim]{status}[/dim] Warning #{warning.warning_number} ({warning.department}): "
+                f"{warning.title[:40]}... "
                 f"[{warning.severity.value.upper()}]"
             )
 
@@ -159,9 +163,19 @@ def _run_forecast_scrape(
             console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
             forecasts = scraper.scrape_forecasts(departments=dept_list)
         else:
+            # Get from settings
             dept_list = settings.get_departments_list()
-            console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
-            forecasts = scraper.scrape_forecasts(departments=dept_list)
+
+            # If empty list (SCRAPE_ALL_DEPARTMENTS=True), scrape all
+            if not dept_list or settings.scrape_all_departments:
+                console.print(
+                    "[yellow]Fetching data from SENAMHI (all departments)...[/yellow]"
+                )
+                forecasts = scraper.scrape_all_departments()
+                dept_list = sorted(list(set(f.department for f in forecasts)))
+            else:
+                console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
+                forecasts = scraper.scrape_forecasts(departments=dept_list)
 
         if not forecasts:
             console.print("[red]No forecasts found![/red]")
@@ -645,7 +659,6 @@ def daemon_status():
     console.print(
         f"[bold]Start Immediately:[/bold] {'Yes' if settings.scheduler_start_immediately else 'No'}"
     )
-    console.print(f"[bold]Max Warnings per Scrape:[/bold] {settings.max_warnings}")
     console.print()
 
     # Check if scheduler is running
@@ -741,3 +754,24 @@ def runs(
 
     finally:
         db.close()
+
+
+@app.command()
+def web(
+    host: Annotated[str | None, typer.Option(help="Host to bind")] = None,
+    port: Annotated[int | None, typer.Option(help="Port to bind")] = None,
+    debug: Annotated[bool | None, typer.Option(help="Debug mode")] = None,
+):
+    """Start the web dashboard."""
+    from app.web.app import create_app
+
+    # Use settings as defaults
+    final_host = host or settings.web_host
+    final_port = port or settings.web_port
+    final_debug = debug if debug is not None else settings.web_debug
+
+    console.print("\n[bold cyan]Starting SENAMHI Tracker Dashboard[/bold cyan]\n")
+    console.print(f"[dim]Running on http://{final_host}:{final_port}[/dim]\n")
+
+    app_instance = create_app()
+    app_instance.run(host=final_host, port=final_port, debug=final_debug)

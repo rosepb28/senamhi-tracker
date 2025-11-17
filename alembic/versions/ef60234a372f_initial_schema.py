@@ -1,8 +1,8 @@
-"""add status field to warnings
+"""initial schema
 
-Revision ID: 4a8110bbaf94
+Revision ID: ef60234a372f
 Revises:
-Create Date: 2025-11-14 18:16:43.444911
+Create Date: 2025-11-15 19:06:08.671128
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "4a8110bbaf94"
+revision: str = "ef60234a372f"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -61,6 +61,7 @@ def upgrade() -> None:
         "warnings",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("warning_number", sa.String(), nullable=False),
+        sa.Column("department", sa.String(), nullable=False),
         sa.Column("severity", sa.String(), nullable=False),
         sa.Column("status", sa.String(), nullable=False),
         sa.Column("title", sa.String(), nullable=False),
@@ -70,6 +71,9 @@ def upgrade() -> None:
         sa.Column("issued_at", sa.DateTime(), nullable=False),
         sa.Column("scraped_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_warnings_department"), "warnings", ["department"], unique=False
     )
     op.create_index(op.f("ix_warnings_id"), "warnings", ["id"], unique=False)
     op.create_index(
@@ -86,7 +90,7 @@ def upgrade() -> None:
         op.f("ix_warnings_valid_until"), "warnings", ["valid_until"], unique=False
     )
     op.create_index(
-        op.f("ix_warnings_warning_number"), "warnings", ["warning_number"], unique=True
+        op.f("ix_warnings_warning_number"), "warnings", ["warning_number"], unique=False
     )
     op.create_table(
         "forecasts",
@@ -96,7 +100,7 @@ def upgrade() -> None:
         sa.Column("day_name", sa.String(), nullable=False),
         sa.Column("temp_max", sa.Integer(), nullable=False),
         sa.Column("temp_min", sa.Integer(), nullable=False),
-        sa.Column("weather_icon", sa.String(), nullable=False),
+        sa.Column("icon_number", sa.Integer(), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("issued_at", sa.DateTime(), nullable=False),
         sa.Column("scraped_at", sa.DateTime(), nullable=False),
@@ -138,6 +142,7 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_warnings_severity"), table_name="warnings")
     op.drop_index(op.f("ix_warnings_issued_at"), table_name="warnings")
     op.drop_index(op.f("ix_warnings_id"), table_name="warnings")
+    op.drop_index(op.f("ix_warnings_department"), table_name="warnings")
     op.drop_table("warnings")
     op.drop_index(op.f("ix_scrape_runs_started_at"), table_name="scrape_runs")
     op.drop_index(op.f("ix_scrape_runs_id"), table_name="scrape_runs")
