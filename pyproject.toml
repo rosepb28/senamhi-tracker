@@ -28,6 +28,8 @@ retry-requests = "^2.0.0"
 pandas = "^2.3.3"
 pyyaml = "^6.0.3"
 loguru = "^0.7.3"
+geoalchemy2 = "^0.18.1"
+psycopg2-binary = "^2.9.11"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.1"

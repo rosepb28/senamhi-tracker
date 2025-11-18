@@ -34,7 +34,15 @@ class Settings(BaseSettings):
         "https://www.senamhi.gob.pe/app_senamhi/sisper/api/avisoMeteoroCabEmergencia"
     )
 
+    # Database configuration
     database_url: str = "sqlite:///./data/weather.db"
+
+    # PostgreSQL Configuration (optional, for PostGIS features)
+    postgres_host: str | None = None
+    postgres_port: int = 5432
+    postgres_user: str | None = None
+    postgres_password: str | None = None
+    postgres_db: str | None = None
 
     # Scraping configuration
     scrape_delay: float = 2.0
@@ -112,6 +120,42 @@ class Settings(BaseSettings):
     def get_openmeteo_variables(self) -> list[dict]:
         """Get configured Open-Meteo variables."""
         return self.openmeteo_config.get("variables", [])
+
+    @property
+    def is_postgresql(self) -> bool:
+        """Check if using PostgreSQL database."""
+        return self.database_url.startswith("postgresql")
+
+    @property
+    def supports_postgis(self) -> bool:
+        """Check if PostGIS features are available."""
+        return self.is_postgresql
+
+    def get_effective_database_url(self) -> str:
+        """
+        Get database URL, with PostgreSQL override if configured.
+
+        Priority:
+        1. Explicit postgres_* environment variables
+        2. DATABASE_URL environment variable
+        3. Default SQLite
+        """
+        # If all PostgreSQL params are provided, use them
+        if all(
+            [
+                self.postgres_host,
+                self.postgres_user,
+                self.postgres_password,
+                self.postgres_db,
+            ]
+        ):
+            return (
+                f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
+                f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            )
+
+        # Otherwise use database_url (SQLite by default)
+        return self.database_url
 
 
 settings = Settings()

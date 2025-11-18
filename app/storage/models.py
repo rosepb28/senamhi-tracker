@@ -1,9 +1,15 @@
+# app/storage/models.py
 from datetime import UTC, date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from config.settings import settings
+
+# Import GeoAlchemy2 only if PostGIS is available
+if settings.supports_postgis:
+    from geoalchemy2 import Geometry
 
 
 def utc_now():
@@ -22,9 +28,15 @@ class Location(Base):
     full_name: Mapped[str] = mapped_column(String)
     active: Mapped[bool] = mapped_column(default=True)
 
-    # Coordinates for Open Meteo integration
+    # Coordinates for Open Meteo integration (always available)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Geospatial point (PostgreSQL + PostGIS only)
+    if settings.supports_postgis:
+        point: Mapped[str | None] = mapped_column(
+            Geometry("POINT", srid=4326), nullable=True
+        )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -37,6 +49,12 @@ class Location(Base):
 
     def __repr__(self) -> str:
         return f"<Location(id={self.id}, location='{self.location}', department='{self.department}')>"
+
+    # Spatial index (PostgreSQL only)
+    if settings.supports_postgis:
+        __table_args__ = (
+            Index("idx_location_point", "point", postgresql_using="gist"),
+        )
 
 
 class Forecast(Base):

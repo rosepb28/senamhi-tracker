@@ -233,5 +233,7 @@ coverage.xml
 htmlcov/
 
 # Development tools
-test_*.db
 .cache/
+
+# Docker environment
+.env.docker

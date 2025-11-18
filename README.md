@@ -42,16 +42,54 @@ cp .env.example .env
 ```
 
 ### Installation (Docker)
-```bash
-# Clone repository
-git clone https://github.com/rosepb28/senamhi-tracker.git
-cd senamhi-tracker
 
-# Start services
+#### Setup
+```bash
+# Create Docker environment file
+cp .env.example .env.docker
+# Edit .env.docker with your preferences
+```
+
+#### SQLite (Default - Simplest)
+```bash
+# Start scheduler
 docker compose up -d
 
 # View logs
-docker compose logs -f
+docker compose logs -f senamhi-tracker
+
+# Manual scrape
+docker compose --profile manual up senamhi-scraper
+
+# Stop
+docker compose down
+```
+
+#### PostgreSQL + PostGIS (For geospatial features)
+```bash
+# Start PostgreSQL + scheduler
+docker compose -f docker-compose.postgres.yml up -d
+
+# View logs
+docker compose -f docker-compose.postgres.yml logs -f senamhi-tracker
+
+# Manual scrape
+docker compose -f docker-compose.postgres.yml --profile manual up senamhi-scraper
+
+# Stop (keep data)
+docker compose -f docker-compose.postgres.yml down
+
+# Stop and remove volumes (⚠️ deletes data)
+docker compose -f docker-compose.postgres.yml down -v
+```
+
+#### Access PostgreSQL directly
+```bash
+# Connect to database
+docker exec -it senamhi-postgres psql -U senamhi_user -d senamhi
+
+# Check PostGIS
+SELECT PostGIS_version();
 ```
 
 ## Usage
@@ -225,26 +263,34 @@ models:
 ```
 senamhi-tracker/
 ├── app/
-│   ├── cli/              # CLI commands (Typer)
-│   ├── logging.py        # Centralized logging configuration
-│   ├── scrapers/         # SENAMHI scraping logic
-│   ├── services/         # Business logic layer (WeatherService, OpenMeteo)
-│   ├── storage/          # Database models and CRUD operations
-│   ├── scheduler/        # Background jobs and scheduling
-│   └── web/              # Flask web application
+│   ├── cli/                  # CLI commands (Typer)
+│   ├── logging.py            # Centralized logging configuration
+│   ├── models/               # Pydantic models (forecast, warning)
+│   ├── scrapers/             # SENAMHI scraping logic
+│   ├── services/             # Business logic layer
+│   │   ├── weather_service.py   # Weather data operations
+│   │   ├── geo_service.py       # Geospatial queries (PostGIS/fallback)
+│   │   └── openmeteo.py         # Open-Meteo API client
+│   ├── storage/              # Database models and CRUD operations
+│   ├── scheduler/            # Background jobs and scheduling
+│   └── web/                  # Flask web application
+├── alembic/                  # Database migrations
+│   └── versions/             # Migration files
 ├── config/
-│   ├── settings.py       # Centralized configuration (Pydantic)
-│   ├── coordinates.yaml  # Location coordinates for Open Meteo
-│   └── openmeteo.yaml    # Weather model configuration
-├── scripts/              # Production scripts
-│   ├── populate_coordinates.py  # Update location coordinates
-│   └── cleanup_old_warnings.py  # Remove expired warnings
-├── dev_tools/            # Development utilities
-│   ├── new_migration.sh  # Create database migrations
-│   └── reset_db.sh       # Reset database (destructive)
-├── tests/                # Test suite with fixtures
-├── logs/                 # Application logs
-└── data/                 # SQLite database
+│   ├── settings.py           # Centralized configuration (Pydantic)
+│   ├── coordinates.yaml      # Location coordinates for Open-Meteo
+│   └── openmeteo.yaml        # Weather model configuration
+├── scripts/                  # Production/maintenance scripts
+│   ├── populate_coordinates.py        # Update location coordinates
+│   ├── cleanup_old_warnings.py        # Remove expired warnings
+│   └── sync_coordinates_to_point.py   # Sync lat/lon to PostGIS (PostgreSQL)
+├── dev_tools/                # Development utilities
+│   ├── new_migration.sh      # Create database migrations
+│   └── reset_db.sh           # Reset database (destructive)
+├── tests/                    # Test suite with fixtures
+├── docker-compose.yml        # Docker setup (SQLite)
+├── docker-compose.postgres.yml  # Docker setup (PostgreSQL + PostGIS)
+└── data/                     # SQLite database (local development)
 ```
 
 ## Development

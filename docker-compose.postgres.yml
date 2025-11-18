@@ -1,0 +1,71 @@
+# docker-compose.postgres.yml - PostgreSQL + PostGIS version
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: senamhi-postgres
+    env_file:
+      - .env.docker
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-senamhi_user} -d ${POSTGRES_DB:-senamhi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - senamhi-network
+
+  senamhi-tracker:
+    build: .
+    container_name: senamhi-tracker-postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      # Override to use PostgreSQL
+      - DATABASE_URL=
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - senamhi-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Manual scraper
+  senamhi-scraper:
+    build: .
+    container_name: senamhi-scraper-postgres
+    profiles:
+      - manual
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=
+      - SCRAPE_ALL_DEPARTMENTS=True
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - senamhi-network
+    command: sh -c "alembic upgrade head && python -m app.main scrape --all"
+
+volumes:
+  postgres_data:
+
+networks:
+  senamhi-network:
+    driver: bridge
