@@ -1,18 +1,15 @@
 """CLI commands for SENAMHI tracker."""
 
 from typing import Annotated
+from datetime import datetime
 
 import typer
-from datetime import datetime
 from rich.console import Console
 from rich.table import Table
-from sqlalchemy import func
 
-from config.config import settings
+from config.settings import settings
 from app.database import SessionLocal
-from app.scrapers.forecast_scraper import ForecastScraper
-from app.storage import crud
-from app.scrapers.warning_scraper import WarningScraper
+from app.services.weather_service import WeatherService
 from scripts.populate_coordinates import populate_coordinates
 
 app = typer.Typer()
@@ -24,6 +21,12 @@ app.add_typer(scrape_app, name="scrape")
 app.add_typer(daemon, name="daemon")
 app.add_typer(warnings_app, name="warnings")
 console = Console()
+
+
+def get_service() -> WeatherService:
+    """Factory function to create WeatherService with database session."""
+    db = SessionLocal()
+    return WeatherService(db)
 
 
 @scrape_app.command(name="forecasts")
@@ -41,8 +44,46 @@ def scrape_forecasts(
     ] = False,
 ):
     """Scrape weather forecasts only."""
-    _run_forecast_scrape(departments, all_departments, force)
-    populate_coordinates(skip_existing=True)
+    service = get_service()
+    try:
+        dept_list = None
+        if departments:
+            dept_list = [d.strip().upper() for d in departments.split(",")]
+        elif not all_departments and not settings.scrape_all_departments:
+            dept_list = settings.get_departments_list()
+
+        console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
+        result = service.update_forecasts(departments=dept_list, force=force)
+
+        if not result["success"]:
+            if result.get("skipped"):
+                console.print(
+                    f"\n[yellow]Warning: Forecasts with issue date "
+                    f"{result['issued_at'].strftime('%Y-%m-%d')} already exist.[/yellow]"
+                )
+                console.print("[dim]Use --force to replace existing data.[/dim]\n")
+            else:
+                console.print(
+                    f"[red]Error: {result.get('error', 'Unknown error')}[/red]"
+                )
+            return
+
+        console.print(
+            f"[dim]Issue date: {result['issued_at'].strftime('%Y-%m-%d')}[/dim]\n"
+        )
+        console.print(f"[green]Found {result['locations']} locations[/green]\n")
+
+        console.print(
+            f"[bold green]Successfully saved {result['saved']} forecast entries![/bold green]\n"
+        )
+
+        populate_coordinates(skip_existing=True)
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(1)
+    finally:
+        service.db.close()
 
 
 @scrape_app.command(name="warnings")
@@ -52,69 +93,27 @@ def scrape_warnings_cmd(
     ] = False,
 ):
     """Scrape weather warnings only."""
-    _run_warnings_scrape(force)
-
-
-def _run_warnings_scrape(force: bool):
-    """Internal function to run warnings scraping."""
-
-    db = SessionLocal()
-
+    service = get_service()
     try:
         console.print("[yellow]Fetching warnings from SENAMHI...[/yellow]")
         console.print("[dim]Scraping only EMITIDO and VIGENTE warnings[/dim]\n")
 
-        scraper = WarningScraper()
-        warnings = scraper.scrape_warnings()
+        result = service.update_warnings(force=force)
 
-        if not warnings:
+        if result["found"] == 0:
             console.print("[yellow]No active warnings found.[/yellow]")
             return
 
-        console.print(f"[green]Found {len(warnings)} active warnings[/green]\n")
-
-        saved_count = 0
-        updated_count = 0
-
-        for warning in warnings:
-            existing = crud.get_warning_by_number(
-                db, warning.warning_number, warning.department
-            )
-
-            if existing and not force:
-                console.print(
-                    f"  [dim]Skip[/dim] Warning #{warning.warning_number} ({warning.department}) "
-                    f"(already exists, use --force to update)"
-                )
-                continue
-
-            crud.save_warning(db, warning)
-
-            if existing:
-                updated_count += 1
-                status = "Updated"
-            else:
-                saved_count += 1
-                status = "Saved"
-
-            console.print(
-                f"  [dim]{status}[/dim] Warning #{warning.warning_number} ({warning.department}): "
-                f"{warning.title[:40]}... "
-                f"[{warning.severity.value.upper()}]"
-            )
-
+        console.print(f"[green]Found {result['found']} active warnings[/green]\n")
         console.print(
-            f"\n[bold green]Saved {saved_count} new, updated {updated_count} warnings![/bold green]\n"
+            f"[bold green]Saved {result['saved']} new, updated {result['updated']} warnings![/bold green]\n"
         )
 
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
-        import traceback
-
-        console.print(f"[dim]{traceback.format_exc()}[/dim]")
         raise typer.Exit(1)
     finally:
-        db.close()
+        service.db.close()
 
 
 @scrape_app.callback(invoke_without_command=True)
@@ -137,99 +136,15 @@ def scrape_callback(
         console.print("\n[bold cyan]Scraping forecasts and warnings[/bold cyan]\n")
 
         console.print("[bold]Step 1/2: Scraping forecasts...[/bold]")
-        _run_forecast_scrape(departments, all_departments, force)
-
-        console.print("\n[bold]Step 2/2: Scraping warnings...[/bold]")
-        _run_warnings_scrape(force)
-
-
-def _run_forecast_scrape(
-    departments: str | None,
-    all_departments: bool,
-    force: bool,
-):
-    """Internal function to run forecast scraping."""
-    db = SessionLocal()
-
-    try:
-        scraper = ForecastScraper()
-
-        if all_departments:
-            console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
-            forecasts = scraper.scrape_all_departments()
-            dept_list = sorted(list(set(f.department for f in forecasts)))
-        elif departments:
-            dept_list = [d.strip().upper() for d in departments.split(",")]
-            console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
-            forecasts = scraper.scrape_forecasts(departments=dept_list)
-        else:
-            # Get from settings
-            dept_list = settings.get_departments_list()
-
-            # If empty list (SCRAPE_ALL_DEPARTMENTS=True), scrape all
-            if not dept_list or settings.scrape_all_departments:
-                console.print(
-                    "[yellow]Fetching data from SENAMHI (all departments)...[/yellow]"
-                )
-                forecasts = scraper.scrape_all_departments()
-                dept_list = sorted(list(set(f.department for f in forecasts)))
-            else:
-                console.print("[yellow]Fetching data from SENAMHI...[/yellow]")
-                forecasts = scraper.scrape_forecasts(departments=dept_list)
-
-        if not forecasts:
-            console.print("[red]No forecasts found![/red]")
-            return
-
-        issued_at = forecasts[0].issued_at
-        console.print(f"[dim]Issue date: {issued_at.strftime('%Y-%m-%d')}[/dim]\n")
-
-        data_exists = False
-        for dept in dept_list:
-            if crud.forecast_exists_for_issue_date(db, issued_at, dept):
-                data_exists = True
-                break
-
-        if data_exists:
-            if not force:
-                console.print(
-                    f"[yellow]Warning: Forecasts with issue date "
-                    f"{issued_at.strftime('%Y-%m-%d')} already exist in database.[/yellow]"
-                )
-                console.print("[dim]Use --force to replace existing data.[/dim]\n")
-                return
-            else:
-                console.print("[yellow]Replacing existing data...[/yellow]")
-                for dept in dept_list:
-                    deleted = crud.delete_forecasts_by_issue_date(db, issued_at, dept)
-                    if deleted > 0:
-                        console.print(
-                            f"  [dim]Deleted {deleted} old entries for {dept}[/dim]"
-                        )
-                console.print()
-
-        console.print(f"[green]Found {len(forecasts)} locations[/green]\n")
-
-        saved_count = 0
-        for location_forecast in forecasts:
-            saved = crud.save_forecast(db, location_forecast)
-            saved_count += len(saved)
-            console.print(
-                f"  [dim]OK[/dim] {location_forecast.location} ({location_forecast.department}): {len(saved)} forecasts"
-            )
-
-        console.print(
-            f"\n[bold green]Successfully saved {saved_count} forecast entries for {len(dept_list)} departments![/bold green]\n"
+        ctx.invoke(
+            scrape_forecasts,
+            departments=departments,
+            all_departments=all_departments,
+            force=force,
         )
 
-    except Exception as e:
-        console.print(f"[bold red]Error:[/bold red] {e}")
-        import traceback
-
-        console.print(f"[dim]{traceback.format_exc()}[/dim]")
-        raise typer.Exit(1)
-    finally:
-        db.close()
+        console.print("\n[bold]Step 2/2: Scraping warnings...[/bold]")
+        ctx.invoke(scrape_warnings_cmd, force=force)
 
 
 @app.command(name="list")
@@ -240,22 +155,15 @@ def list_locations(
     ] = True,
 ):
     """List all locations in database."""
-    db = SessionLocal()
-
+    service = get_service()
     try:
-        locations = crud.get_locations(db, active_only=active_only)
+        locations = service.get_all_locations(active_only=active_only)
 
         if department:
-            if isinstance(department, set):
-                dept_filters = {d.upper() for d in department}
-                locations = [
-                    loc for loc in locations if loc.department.upper() in dept_filters
-                ]
-            else:
-                dept_filter = department.upper()
-                locations = [
-                    loc for loc in locations if loc.department.upper() == dept_filter
-                ]
+            dept_filter = department.upper()
+            locations = [
+                loc for loc in locations if loc.department.upper() == dept_filter
+            ]
 
         if not locations:
             console.print("[yellow]No locations found in database.[/yellow]")
@@ -263,14 +171,13 @@ def list_locations(
             return
 
         table = Table(title="Locations", show_header=True, header_style="bold magenta")
-
         table.add_column("ID", style="cyan", justify="right")
         table.add_column("Location", style="white")
         table.add_column("Department", style="green")
         table.add_column("Status", style="yellow", justify="center")
 
         for loc in locations:
-            status = "OK" if loc.active else "X"
+            status = "✓" if loc.active else "✗"
             table.add_row(str(loc.id), loc.location, loc.department, status)
 
         console.print()
@@ -278,7 +185,7 @@ def list_locations(
         console.print()
 
     finally:
-        db.close()
+        service.db.close()
 
 
 @app.command()
@@ -286,17 +193,17 @@ def show(
     location: Annotated[str, typer.Argument(help="Location name")],
 ):
     """Show latest forecast for a location."""
-    db = SessionLocal()
-
+    service = get_service()
     try:
-        db_location = crud.get_location_by_name(db, location.upper())
+        result = service.get_location_forecasts(location.upper())
 
-        if not db_location:
+        if not result:
             console.print(f"[red]Location '{location}' not found in database.[/red]")
             console.print("[dim]Use 'senamhi list' to see available locations.[/dim]")
             raise typer.Exit(1)
 
-        forecasts = crud.get_latest_forecasts(db, location_id=db_location.id)
+        db_location = result["location"]
+        forecasts = result["forecasts"]
 
         if not forecasts:
             console.print(f"[yellow]No forecasts found for {location}.[/yellow]")
@@ -311,7 +218,6 @@ def show(
         console.print(f"[dim]Scraped: {scraped_at.strftime('%Y-%m-%d %H:%M')}[/dim]\n")
 
         table = Table(show_header=True, header_style="bold magenta")
-
         table.add_column("Date", style="cyan")
         table.add_column("Day", style="white")
         table.add_column("Max", style="red", justify="right")
@@ -319,21 +225,23 @@ def show(
         table.add_column("Description", style="white")
 
         for forecast in forecasts:
+            desc = forecast.description
+            if len(desc) > 60:
+                desc = desc[:60] + "..."
+
             table.add_row(
                 forecast.forecast_date.strftime("%Y-%m-%d"),
                 forecast.day_name,
-                f"{forecast.temp_max}C",
-                f"{forecast.temp_min}C",
-                forecast.description[:60] + "..."
-                if len(forecast.description) > 60
-                else forecast.description,
+                f"{forecast.temp_max}°C",
+                f"{forecast.temp_min}°C",
+                desc,
             )
 
         console.print(table)
         console.print()
 
     finally:
-        db.close()
+        service.db.close()
 
 
 @app.command()
@@ -342,19 +250,14 @@ def history(
     date_str: Annotated[str, typer.Argument(help="Forecast date (YYYY-MM-DD)")],
 ):
     """Show forecast history for a specific date."""
-
-    db = SessionLocal()
-
+    service = get_service()
     try:
-        db_location = crud.get_location_by_name(db, location.upper())
+        forecast_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        forecasts = service.get_forecast_history(location.upper(), forecast_date)
 
-        if not db_location:
+        if forecasts is None:
             console.print(f"[red]Location '{location}' not found.[/red]")
             raise typer.Exit(1)
-
-        forecast_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-
-        forecasts = crud.get_forecast_history(db, db_location.id, forecast_date)
 
         if not forecasts:
             console.print(
@@ -362,13 +265,10 @@ def history(
             )
             return
 
-        console.print(
-            f"\n[bold cyan]Forecast History: {db_location.full_name}[/bold cyan]"
-        )
+        console.print(f"\n[bold cyan]Forecast History: {location}[/bold cyan]")
         console.print(f"[bold]Date:[/bold] {date_str}\n")
 
         table = Table(show_header=True, header_style="bold magenta")
-
         table.add_column("Issued", style="cyan")
         table.add_column("Scraped", style="dim")
         table.add_column("Max", style="red", justify="right")
@@ -383,15 +283,14 @@ def history(
             if prev_max is not None:
                 max_diff = forecast.temp_max - prev_max
                 min_diff = forecast.temp_min - prev_min
-
                 if max_diff != 0 or min_diff != 0:
                     change = f"({max_diff:+d}/{min_diff:+d})"
 
             table.add_row(
                 forecast.issued_at.strftime("%Y-%m-%d"),
                 forecast.scraped_at.strftime("%m-%d %H:%M"),
-                f"{forecast.temp_max}C",
-                f"{forecast.temp_min}C",
+                f"{forecast.temp_max}°C",
+                f"{forecast.temp_min}°C",
                 change,
             )
 
@@ -402,55 +301,38 @@ def history(
         console.print()
 
     finally:
-        db.close()
+        service.db.close()
 
 
 @app.command()
 def status():
     """Show database status and latest information."""
-    db = SessionLocal()
-
+    service = get_service()
     try:
-        locations = crud.get_locations(db)
+        stats = service.get_database_status()
 
-        if not locations:
+        if stats["locations"] == 0:
             console.print("[yellow]Database is empty.[/yellow]")
             console.print("[dim]Run 'senamhi scrape' to fetch data.[/dim]")
             return
 
         console.print("\n[bold cyan]Database Status[/bold cyan]\n")
+        console.print(f"[bold]Locations:[/bold] {stats['locations']}")
+        console.print(f"[bold]Total forecasts:[/bold] {stats['total_forecasts']}")
 
-        total_forecasts = db.query(crud.Forecast).count()
-
-        latest_issued = crud.get_latest_issued_date(db)
-        latest_scraped = db.query(func.max(crud.Forecast.scraped_at)).scalar()
-
-        console.print(f"[bold]Locations:[/bold] {len(locations)}")
-        console.print(f"[bold]Total forecasts:[/bold] {total_forecasts}")
-
-        if latest_issued:
+        if stats["latest_issued"]:
             console.print(
-                f"[bold]Latest issue date:[/bold] {latest_issued.strftime('%Y-%m-%d')}"
-            )
-
-        if latest_scraped:
-            console.print(
-                f"[bold]Last scraped:[/bold] {latest_scraped.strftime('%Y-%m-%d %H:%M')}"
+                f"[bold]Latest issue date:[/bold] {stats['latest_issued'].strftime('%Y-%m-%d')}"
             )
 
         console.print("\n[bold]Locations by department:[/bold]")
-
-        departments = {}
-        for loc in locations:
-            departments[loc.department] = departments.get(loc.department, 0) + 1
-
-        for dept, count in sorted(departments.items()):
+        for dept, count in sorted(stats["departments"].items()):
             console.print(f"  {dept}: {count}")
 
         console.print()
 
     finally:
-        db.close()
+        service.db.close()
 
 
 @warnings_app.command(name="list")
@@ -461,28 +343,24 @@ def warnings_list(
         typer.Option(help="Filter by severity (verde/amarillo/naranja/rojo)"),
     ] = None,
     active_only: Annotated[
-        bool,
-        typer.Option(help="Show only active warnings"),
+        bool, typer.Option(help="Show only active warnings")
     ] = False,
 ):
     """List recent weather warnings."""
-    db = SessionLocal()
-
+    service = get_service()
     try:
-        warnings_list_data = crud.get_warnings(
-            db,
+        warnings = service.get_warnings(
             severity=severity,
             active_only=active_only,
             limit=limit,
         )
 
-        if not warnings_list_data:
+        if not warnings:
             console.print("[yellow]No warnings found.[/yellow]")
             return
 
         title = f"Weather Warnings (Last {limit})"
         table = Table(title=title, show_header=True, header_style="bold magenta")
-
         table.add_column("Number", style="cyan", justify="right")
         table.add_column("Title", style="white")
         table.add_column("Severity")
@@ -490,33 +368,34 @@ def warnings_list(
         table.add_column("Valid From")
         table.add_column("Valid Until")
 
-        for warning in warnings_list_data:
-            # Severity with color
-            severity_colors = {
-                "verde": "green",
-                "amarillo": "#FFD700",
-                "naranja": "#FF8C00",
-                "rojo": "red",
-            }
+        severity_colors = {
+            "verde": "green",
+            "amarillo": "#FFD700",
+            "naranja": "#FF8C00",
+            "rojo": "red",
+        }
+        status_colors = {
+            "emitido": "blue",
+            "vigente": "red",
+            "vencido": "white",
+        }
+
+        for warning in warnings:
             severity_color = severity_colors.get(warning.severity, "white")
             severity_text = (
                 f"[{severity_color}]{warning.severity.upper()}[/{severity_color}]"
             )
 
-            # Status with color
-            status_colors = {
-                "emitido": "blue",
-                "vigente": "red",
-                "vencido": "white",
-            }
             status_color = status_colors.get(warning.status, "white")
             status_text = f"[{status_color}]{warning.status.upper()}[/{status_color}]"
 
+            title_text = warning.title
+            if len(title_text) > 50:
+                title_text = title_text[:50] + "..."
+
             table.add_row(
                 warning.warning_number,
-                warning.title[:50] + "..."
-                if len(warning.title) > 50
-                else warning.title,
+                title_text,
                 severity_text,
                 status_text,
                 warning.valid_from.strftime("%Y-%m-%d"),
@@ -528,7 +407,7 @@ def warnings_list(
         console.print()
 
     finally:
-        db.close()
+        service.db.close()
 
 
 @warnings_app.command(name="show")
@@ -536,60 +415,52 @@ def warnings_show(
     number: Annotated[str, typer.Argument(help="Warning number")],
 ):
     """Show detailed information for a specific warning."""
-    db = SessionLocal()
-
+    service = get_service()
     try:
-        warning_obj = crud.get_warning_by_number(db, number)
+        warning = service.get_warning_details(number)
 
-        if not warning_obj:
+        if not warning:
             console.print(f"[red]Warning #{number} not found.[/red]")
             raise typer.Exit(1)
 
-        console.print(f"\n[bold cyan]Warning #{warning_obj.warning_number}[/bold cyan]")
+        console.print(f"\n[bold cyan]Warning #{warning.warning_number}[/bold cyan]")
 
-        # Status with color
-        status_colors = {
-            "emitido": "blue",
-            "vigente": "red",
-            "vencido": "white",
-        }
-        status_color = status_colors.get(warning_obj.status, "white")
+        status_colors = {"emitido": "blue", "vigente": "red", "vencido": "white"}
+        status_color = status_colors.get(warning.status, "white")
         console.print(
-            f"Status: [{status_color}]{warning_obj.status.upper()}[/{status_color}]"
+            f"Status: [{status_color}]{warning.status.upper()}[/{status_color}]"
         )
-
         console.print()
 
-        # Severity with color
         severity_colors = {
             "verde": "green",
             "amarillo": "#FFD700",
             "naranja": "#FF8C00",
             "rojo": "red",
         }
-        severity_color = severity_colors.get(warning_obj.severity, "white")
+        severity_color = severity_colors.get(warning.severity, "white")
 
-        console.print(f"[bold]Title:[/bold] {warning_obj.title}")
+        console.print(f"[bold]Title:[/bold] {warning.title}")
         console.print(
-            f"[bold]Severity:[/bold] [{severity_color}]{warning_obj.severity.upper()}[/{severity_color}]"
+            f"[bold]Severity:[/bold] [{severity_color}]{warning.severity.upper()}[/{severity_color}]"
         )
         console.print()
         console.print(
-            f"[bold]Issued:[/bold] {warning_obj.issued_at.strftime('%Y-%m-%d %H:%M')}"
+            f"[bold]Issued:[/bold] {warning.issued_at.strftime('%Y-%m-%d %H:%M')}"
         )
         console.print(
-            f"[bold]Valid from:[/bold] {warning_obj.valid_from.strftime('%Y-%m-%d %H:%M')}"
+            f"[bold]Valid from:[/bold] {warning.valid_from.strftime('%Y-%m-%d %H:%M')}"
         )
         console.print(
-            f"[bold]Valid until:[/bold] {warning_obj.valid_until.strftime('%Y-%m-%d %H:%M')}"
+            f"[bold]Valid until:[/bold] {warning.valid_until.strftime('%Y-%m-%d %H:%M')}"
         )
         console.print()
         console.print("[bold]Description:[/bold]")
-        console.print(warning_obj.description)
+        console.print(warning.description)
         console.print()
 
     finally:
-        db.close()
+        service.db.close()
 
 
 @warnings_app.command(name="active")
@@ -603,13 +474,13 @@ def warnings_active(
 @app.command()
 def departments():
     """List all available departments from SENAMHI."""
+    service = get_service()
     try:
         console.print(
             "\n[yellow]Fetching available departments from SENAMHI...[/yellow]\n"
         )
 
-        scraper = ForecastScraper()
-        depts = scraper.get_all_departments()
+        depts = service.get_available_departments()
 
         console.print(f"[bold cyan]Available Departments ({len(depts)}):[/bold cyan]\n")
 
@@ -621,11 +492,8 @@ def departments():
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise typer.Exit(1)
-
-
-# Create subgroup for daemon commands
-daemon = typer.Typer(help="Scheduler daemon commands")
-app.add_typer(daemon, name="daemon")
+    finally:
+        service.db.close()
 
 
 @daemon.command(name="start")
@@ -661,7 +529,6 @@ def daemon_status():
     )
     console.print()
 
-    # Check if scheduler is running
     import subprocess
 
     try:
@@ -687,10 +554,9 @@ def runs(
     ] = None,
 ):
     """Show scrape run history."""
-    db = SessionLocal()
-
+    service = get_service()
     try:
-        runs = crud.get_scrape_runs(db, limit=limit, status=status)
+        runs = service.get_scrape_runs(limit=limit, status=status)
 
         if not runs:
             console.print("[yellow]No scrape runs found in database.[/yellow]")
@@ -711,14 +577,12 @@ def runs(
         table.add_column("Departments", style="dim")
 
         for run in runs:
-            # Calculate duration
             if run.finished_at:
                 duration = run.finished_at - run.started_at
                 duration_str = f"{duration.total_seconds():.0f}s"
             else:
                 duration_str = "running"
 
-            # Status color
             if run.status == "success":
                 status_text = "[green]success[/green]"
             elif run.status == "failed":
@@ -728,6 +592,10 @@ def runs(
             else:
                 status_text = run.status
 
+            dept_text = run.departments
+            if len(dept_text) > 30:
+                dept_text = dept_text[:30] + "..."
+
             table.add_row(
                 str(run.id),
                 run.started_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -735,25 +603,23 @@ def runs(
                 status_text,
                 str(run.locations_scraped),
                 str(run.forecasts_saved),
-                run.departments[:30] + "..."
-                if len(run.departments) > 30
-                else run.departments,
+                dept_text,
             )
 
         console.print()
         console.print(table)
         console.print()
 
-        # Show error details for failed runs
         failed_runs = [r for r in runs if r.status == "failed" and r.error_message]
         if failed_runs:
             console.print("[bold red]Recent Errors:[/bold red]\n")
             for run in failed_runs[:3]:
-                console.print(f"[red]Run #{run.id}:[/red] {run.error_message[:100]}")
+                error_msg = run.error_message[:100] if run.error_message else "Unknown"
+                console.print(f"[red]Run #{run.id}:[/red] {error_msg}")
             console.print()
 
     finally:
-        db.close()
+        service.db.close()
 
 
 @app.command()
@@ -765,7 +631,6 @@ def web(
     """Start the web dashboard."""
     from app.web.app import create_app
 
-    # Use settings as defaults
     final_host = host or settings.web_host
     final_port = port or settings.web_port
     final_debug = debug if debug is not None else settings.web_debug

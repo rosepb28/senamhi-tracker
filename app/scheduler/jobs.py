@@ -3,26 +3,31 @@
 import time
 import traceback
 
-from app.cli.commands import _run_warnings_scrape
-from config.config import settings
+from config.settings import settings
 from app.database import SessionLocal
-from app.scrapers.forecast_scraper import ForecastScraper
 from app.scheduler.logger import setup_logger
+from app.services.weather_service import WeatherService
 from app.storage import crud
 
 logger = setup_logger()
 
 
+def get_service() -> WeatherService:
+    """Factory function to create WeatherService with database session."""
+    db = SessionLocal()
+    return WeatherService(db)
+
+
 def run_forecast_scrape_job() -> None:
     """Execute forecast scraping job with error handling and logging."""
-    db = SessionLocal()
+    service = get_service()
 
     try:
         logger.info("Starting scheduled forecast scrape job")
 
-        # Determine what to scrape
+        # Determine departments to scrape
         if settings.scrape_all_departments:
-            dept_list = None  # Will scrape all
+            dept_list = None
             logger.info("Scraping ALL departments")
         else:
             dept_list = settings.get_departments_list()
@@ -30,30 +35,44 @@ def run_forecast_scrape_job() -> None:
 
         # Create run record
         run = crud.create_scrape_run(
-            db,
+            service.db,
             departments=dept_list if dept_list else ["ALL"],
         )
         logger.debug(f"Created scrape run #{run.id}")
 
         # Execute scraping with retries
-        forecasts = None
+        result = None
         last_error = None
 
         for attempt in range(1, settings.max_retries + 1):
             try:
                 logger.info(f"Scrape attempt {attempt}/{settings.max_retries}")
 
-                scraper = ForecastScraper()
+                result = service.update_forecasts(departments=dept_list, force=False)
 
-                if settings.scrape_all_departments:
-                    forecasts = scraper.scrape_all_departments()
-                    actual_depts = sorted(list(set(f.department for f in forecasts)))
+                if result["success"]:
+                    logger.info(
+                        f"Successfully scraped {result['locations']} locations, "
+                        f"saved {result['saved']} forecasts"
+                    )
+                    break
+                elif result.get("skipped"):
+                    logger.info(
+                        f"Data already exists for issue date "
+                        f"{result['issued_at'].strftime('%Y-%m-%d')}, skipping"
+                    )
+                    crud.update_scrape_run(
+                        service.db,
+                        run.id,
+                        status="skipped",
+                        locations_scraped=result["locations"],
+                        forecasts_saved=0,
+                        error_message=result.get("message"),
+                    )
+                    return
                 else:
-                    forecasts = scraper.scrape_forecasts(departments=dept_list)
-                    actual_depts = dept_list
-
-                logger.info(f"Successfully scraped {len(forecasts)} locations")
-                break
+                    last_error = result.get("error", "Unknown error")
+                    logger.error(f"Scrape attempt {attempt} failed: {last_error}")
 
             except Exception as e:
                 last_error = str(e)
@@ -67,10 +86,10 @@ def run_forecast_scrape_job() -> None:
                 else:
                     logger.error("All retry attempts exhausted")
 
-        if not forecasts:
+        if not result or not result["success"]:
             # All retries failed
             crud.update_scrape_run(
-                db,
+                service.db,
                 run.id,
                 status="failed",
                 error_message=last_error,
@@ -78,51 +97,18 @@ def run_forecast_scrape_job() -> None:
             logger.error(f"Forecast scrape job failed: {last_error}")
             return
 
-        # Check if data already exists (skip if same issue date)
-        issued_at = forecasts[0].issued_at
-        logger.info(f"Forecast issue date: {issued_at.strftime('%Y-%m-%d')}")
-
-        data_exists = False
-        for dept in actual_depts:
-            if crud.forecast_exists_for_issue_date(db, issued_at, dept):
-                data_exists = True
-                break
-
-        if data_exists:
-            logger.info("Data already exists for this issue date, skipping save")
-            crud.update_scrape_run(
-                db,
-                run.id,
-                status="skipped",
-                locations_scraped=len(forecasts),
-                forecasts_saved=0,
-                error_message="Data already exists for this issue date",
-            )
-            return
-
-        # Save forecasts
-        logger.info("Saving forecasts to database...")
-        saved_count = 0
-
-        for location_forecast in forecasts:
-            try:
-                saved = crud.save_forecast(db, location_forecast)
-                saved_count += len(saved)
-            except Exception as e:
-                logger.warning(f"Failed to save {location_forecast.location}: {e}")
-
-        # Update run record
+        # Update run record with success
         crud.update_scrape_run(
-            db,
+            service.db,
             run.id,
             status="success",
-            locations_scraped=len(forecasts),
-            forecasts_saved=saved_count,
+            locations_scraped=result["locations"],
+            forecasts_saved=result["saved"],
         )
 
         logger.info(
             f"Forecast scrape job completed successfully: "
-            f"{len(forecasts)} locations, {saved_count} forecasts saved"
+            f"{result['locations']} locations, {result['saved']} forecasts saved"
         )
 
     except Exception as e:
@@ -132,7 +118,7 @@ def run_forecast_scrape_job() -> None:
         try:
             if "run" in locals():
                 crud.update_scrape_run(
-                    db,
+                    service.db,
                     run.id,
                     status="failed",
                     error_message=str(e),
@@ -141,17 +127,29 @@ def run_forecast_scrape_job() -> None:
             logger.error(f"Failed to update run record: {update_error}")
 
     finally:
-        db.close()
+        service.db.close()
 
 
 def run_warnings_scrape_job() -> None:
     """Execute warnings scraping job with error handling and logging."""
-    logger.info("Starting scheduled warnings scrape job")
+    service = get_service()
 
     try:
-        _run_warnings_scrape(force=False)
-        logger.info("Warnings scrape job completed successfully")
+        logger.info("Starting scheduled warnings scrape job")
+
+        result = service.update_warnings(force=False)
+
+        if result["success"]:
+            logger.info(
+                f"Warnings scrape completed: {result['found']} found, "
+                f"{result['saved']} saved, {result['updated']} updated"
+            )
+        else:
+            logger.error("Warnings scrape failed")
 
     except Exception as e:
         logger.error(f"Warnings scrape job failed: {e}")
         logger.debug(traceback.format_exc())
+
+    finally:
+        service.db.close()

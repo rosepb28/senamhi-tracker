@@ -225,17 +225,25 @@ models:
 ```
 senamhi-tracker/
 ├── app/
-│   ├── cli/              # CLI commands
+│   ├── cli/              # CLI commands (Typer)
+│   ├── logging.py        # Centralized logging configuration
 │   ├── scrapers/         # SENAMHI scraping logic
-│   ├── services/         # External API services (Open Meteo)
-│   ├── storage/          # Database models and CRUD
-│   ├── scheduler/        # Background jobs
+│   ├── services/         # Business logic layer (WeatherService, OpenMeteo)
+│   ├── storage/          # Database models and CRUD operations
+│   ├── scheduler/        # Background jobs and scheduling
 │   └── web/              # Flask web application
 ├── config/
-│   ├── coordinates.yaml  # Location coordinates
+│   ├── settings.py       # Centralized configuration (Pydantic)
+│   ├── coordinates.yaml  # Location coordinates for Open Meteo
 │   └── openmeteo.yaml    # Weather model configuration
-├── scripts/              # Utility scripts
-├── tests/                # Test suite
+├── scripts/              # Production scripts
+│   ├── populate_coordinates.py  # Update location coordinates
+│   └── cleanup_old_warnings.py  # Remove expired warnings
+├── dev_tools/            # Development utilities
+│   ├── new_migration.sh  # Create database migrations
+│   └── reset_db.sh       # Reset database (destructive)
+├── tests/                # Test suite with fixtures
+├── logs/                 # Application logs
 └── data/                 # SQLite database
 ```
 
@@ -258,25 +266,28 @@ poetry run pre-commit run --all-files
 ### Database Migrations
 ```bash
 # Create new migration
-poetry run alembic revision --autogenerate -m "description"
+./dev_tools/new_migration.sh "description"
 
 # Apply migrations
 poetry run alembic upgrade head
 
 # Rollback one migration
 poetry run alembic downgrade -1
+
+# Reset database (⚠️ deletes all data - development only)
+./dev_tools/reset_db.sh
 ```
 
-### Cleanup
+### Maintenance Scripts
 ```bash
-# Remove expired warnings
+# Populate location coordinates (after adding new locations)
+poetry run python scripts/populate_coordinates.py --skip-existing
+
+# Remove expired warnings (production maintenance)
 poetry run python scripts/cleanup_old_warnings.py
 
 # Preview what would be deleted (dry run)
 poetry run python scripts/cleanup_old_warnings.py --dry-run
-
-# Reset database (⚠️ deletes all data)
-./scripts/reset_db.sh
 ```
 
 ## Examples

@@ -1,6 +1,6 @@
 """Tests for scheduler functionality."""
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -8,6 +8,8 @@ from app.database import Base
 from app.storage import crud
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+from app.scheduler.jobs import run_forecast_scrape_job
 
 TEST_DATABASE_URL = "sqlite:///./test_scheduler.db"
 
@@ -85,10 +87,32 @@ def test_get_scrape_runs_filtered(db_session):
     assert failed_runs[0].error_message == "Test error"
 
 
-@patch("app.scheduler.jobs.ForecastScraper")
-@patch("app.scheduler.jobs.SessionLocal")
-def test_run_forecast_scrape_job_success(mock_session, mock_scraper):
-    """Test successful scrape job execution."""
-    # This is a basic integration test
-    # Full testing would require mocking more components
-    pass
+@patch("app.scheduler.jobs.get_service")
+@patch("app.scheduler.jobs.crud")
+def test_run_forecast_scrape_job_success(mock_crud, mock_get_service):
+    """Test successful scrape job execution with WeatherService."""
+    # Mock service
+    mock_service = Mock()
+    mock_service.db = Mock()
+    mock_service.update_forecasts.return_value = {
+        "success": True,
+        "issued_at": Mock(strftime=lambda x: "2025-11-18"),
+        "locations": 10,
+        "saved": 30,
+    }
+    mock_get_service.return_value = mock_service
+
+    # Mock CRUD operations
+    mock_run = Mock(id=1)
+    mock_crud.create_scrape_run.return_value = mock_run
+
+    # Execute job
+    run_forecast_scrape_job()
+
+    # Verify service was called
+    mock_service.update_forecasts.assert_called_once()
+
+    # Verify run was updated with success
+    mock_crud.update_scrape_run.assert_called_once()
+    call_args = mock_crud.update_scrape_run.call_args
+    assert call_args[1]["status"] == "success"

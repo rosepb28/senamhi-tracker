@@ -5,9 +5,9 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 
-from config.config import settings
+from config.settings import settings
 from app.models.forecast import DailyForecast, LocationForecast
-from app.scrapers.utils import parse_date, parse_temperature
+from app.scrapers.utils import parse_date, parse_temperature, parse_issued_date
 
 from rich.console import Console
 
@@ -177,7 +177,6 @@ class ForecastScraper:
 
     def _extract_issued_date(self, soup: BeautifulSoup) -> datetime:
         """Extract forecast issued date from page footer."""
-        from app.scrapers.utils import parse_issued_date
 
         # Look for text containing "Emisión:"
         for element in soup.find_all(string=re.compile(r"Emisión:", re.IGNORECASE)):

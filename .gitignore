@@ -231,3 +231,7 @@ logs/
 coverage.xml
 .coverage
 htmlcov/
+
+# Development tools
+test_*.db
+.cache/

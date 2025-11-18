@@ -6,7 +6,7 @@ import time
 
 import schedule
 
-from config.config import settings
+from config.settings import settings
 from app.scheduler.jobs import run_forecast_scrape_job, run_warnings_scrape_job
 from app.scheduler.logger import setup_logger
 

@@ -1,11 +1,11 @@
 """Open Meteo API client for weather forecasts."""
 
-import logging
-from pathlib import Path
+from app.logging import setup_logging
 
 import openmeteo_requests
 import pandas as pd
-import yaml
+
+from config.settings import settings
 
 try:
     import requests_cache
@@ -15,33 +15,7 @@ try:
 except ImportError:
     CACHE_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
-
-# Load config
-CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "openmeteo.yaml"
-
-try:
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        OPENMETEO_CONFIG = yaml.safe_load(f)
-    logger.info(f"Loaded Open Meteo config from {CONFIG_PATH}")
-except FileNotFoundError:
-    logger.error(f"Config file not found: {CONFIG_PATH}")
-    OPENMETEO_CONFIG = {
-        "models": [
-            {"id": "gfs_seamless", "name": "GFS"},
-            {"id": "ecmwf_ifs", "name": "ECMWF"},
-        ],
-        "variables": [
-            {"id": "temperature_2m"},
-            {"id": "precipitation"},
-            {"id": "wind_speed_10m"},
-        ],
-        "forecast_days": 3,
-        "timezone": "America/Lima",
-    }
-except Exception as e:
-    logger.error(f"Error loading config: {e}")
-    raise
+logger = setup_logging(module_name="openmeteo")
 
 
 class OpenMeteoClient:
@@ -49,7 +23,7 @@ class OpenMeteoClient:
 
     def __init__(self):
         """Initialize Open Meteo client with cache and retry."""
-        self.config = OPENMETEO_CONFIG
+        self.config = settings.openmeteo_config
 
         # Extract model IDs from config
         self.models = [m["id"] for m in self.config["models"]]
@@ -66,7 +40,7 @@ class OpenMeteoClient:
             logger.warning("requests-cache not available, using standard session")
             self.client = openmeteo_requests.Client()
 
-        self.url = self.config.get("url", "https://api.open-meteo.com/v1/forecast")
+        self.url = settings.get_openmeteo_url()
 
     def get_config(self) -> dict:
         """Get Open Meteo configuration."""
@@ -102,7 +76,6 @@ class OpenMeteoClient:
             "longitude": longitude,
             "hourly": self.variables,
             "models": ",".join(models),
-            # "timezone": self.config["timezone"],
             "forecast_days": forecast_days,
         }
 

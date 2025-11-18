@@ -5,7 +5,7 @@ from datetime import datetime
 import requests
 from rich.console import Console
 
-from config.config import settings
+from config.settings import settings
 from app.models.warning import Warning, WarningSeverity, WarningStatus
 
 console = Console()
