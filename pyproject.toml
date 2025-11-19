@@ -33,6 +33,7 @@ psycopg2-binary = "^2.9.11"
 geopandas = "^1.1.1"
 fiona = "^1.10.1"
 shapely = "^2.1.2"
+flask-cors = "^6.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.1"
