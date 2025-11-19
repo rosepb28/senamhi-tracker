@@ -11,15 +11,19 @@ from config.settings import settings
 from app.database import SessionLocal
 from app.services.weather_service import WeatherService
 from scripts.populate_coordinates import populate_coordinates
+from app.storage.models import WarningAlert
 
 app = typer.Typer()
 scrape_app = typer.Typer(help="Scrape weather data from SENAMHI")
 warnings_app = typer.Typer(help="Manage weather warnings")
+geo_app = typer.Typer(help="Geospatial operations (shapefiles, geometries)")
 daemon = typer.Typer(help="Scheduler daemon commands")
 
 app.add_typer(scrape_app, name="scrape")
 app.add_typer(daemon, name="daemon")
 app.add_typer(warnings_app, name="warnings")
+app.add_typer(geo_app, name="geo")
+
 console = Console()
 
 
@@ -335,6 +339,9 @@ def status():
         service.db.close()
 
 
+# ==================== Warnings Commands ====================
+
+
 @warnings_app.command(name="list")
 def warnings_list(
     limit: Annotated[int, typer.Option(help="Number of warnings to show")] = 10,
@@ -343,28 +350,58 @@ def warnings_list(
         typer.Option(help="Filter by severity (verde/amarillo/naranja/rojo)"),
     ] = None,
     active_only: Annotated[
-        bool, typer.Option(help="Show only active warnings")
+        bool,
+        typer.Option(help="Show only active warnings"),
     ] = False,
+    department: Annotated[
+        str | None,
+        typer.Option(help="Filter by department"),
+    ] = None,
 ):
-    """List recent weather warnings."""
+    """List recent weather warnings (deduplicated by warning number)."""
     service = get_service()
     try:
-        warnings = service.get_warnings(
+        warnings_list_data = service.get_warnings(
             severity=severity,
             active_only=active_only,
-            limit=limit,
+            limit=limit * 10,  # Get more to allow for deduplication
         )
 
-        if not warnings:
+        if not warnings_list_data:
             console.print("[yellow]No warnings found.[/yellow]")
             return
 
-        title = f"Weather Warnings (Last {limit})"
+        # Filter by department if specified
+        if department:
+            warnings_list_data = [
+                w
+                for w in warnings_list_data
+                if w.department.upper() == department.upper()
+            ]
+
+        # Deduplicate by warning_number (keep first occurrence)
+        seen = set()
+        unique_warnings = []
+        for warning in warnings_list_data:
+            if warning.warning_number not in seen:
+                seen.add(warning.warning_number)
+                unique_warnings.append(warning)
+
+            if len(unique_warnings) >= limit:
+                break
+
+        if not unique_warnings:
+            console.print("[yellow]No warnings found matching filters.[/yellow]")
+            return
+
+        title = f"Weather Warnings (Last {len(unique_warnings)})"
         table = Table(title=title, show_header=True, header_style="bold magenta")
+
         table.add_column("Number", style="cyan", justify="right")
         table.add_column("Title", style="white")
         table.add_column("Severity")
         table.add_column("Status")
+        table.add_column("Departments", style="dim")  # Show affected departments
         table.add_column("Valid From")
         table.add_column("Valid Until")
 
@@ -380,7 +417,7 @@ def warnings_list(
             "vencido": "white",
         }
 
-        for warning in warnings:
+        for warning in unique_warnings:
             severity_color = severity_colors.get(warning.severity, "white")
             severity_text = (
                 f"[{severity_color}]{warning.severity.upper()}[/{severity_color}]"
@@ -393,11 +430,22 @@ def warnings_list(
             if len(title_text) > 50:
                 title_text = title_text[:50] + "..."
 
+            # Count departments affected by this warning number
+            dept_count = sum(
+                1
+                for w in warnings_list_data
+                if w.warning_number == warning.warning_number
+            )
+            dept_text = (
+                f"{dept_count} dept(s)" if dept_count > 1 else warning.department
+            )
+
             table.add_row(
                 warning.warning_number,
                 title_text,
                 severity_text,
                 status_text,
+                dept_text,
                 warning.valid_from.strftime("%Y-%m-%d"),
                 warning.valid_until.strftime("%Y-%m-%d"),
             )
@@ -496,6 +544,7 @@ def departments():
         service.db.close()
 
 
+# ==================== Daemon commands ====================
 @daemon.command(name="start")
 def daemon_start():
     """Start the scheduler daemon in foreground."""
@@ -640,3 +689,255 @@ def web(
 
     app_instance = create_app()
     app_instance.run(host=final_host, port=final_port, debug=final_debug)
+
+
+# ==================== Geospatial Commands ====================
+
+
+@geo_app.command(name="download")
+def geo_download(
+    warning_number: Annotated[str, typer.Argument(help="Warning number to download")],
+):
+    """Download shapefiles for a specific warning."""
+    from app.scrapers.shapefile_downloader import ShapefileDownloader
+
+    db = SessionLocal()
+    try:
+        # Find warning
+        warning = (
+            db.query(WarningAlert)
+            .filter(WarningAlert.warning_number == warning_number)
+            .first()
+        )
+
+        if not warning:
+            console.print(
+                f"[red]Warning #{warning_number} not found in database.[/red]"
+            )
+            console.print("[dim]Run 'senamhi scrape warnings' first.[/dim]")
+            raise typer.Exit(1)
+
+        if not warning.senamhi_id:
+            console.print(
+                f"[yellow]Warning #{warning_number} has no SENAMHI ID.[/yellow]"
+            )
+            console.print("[dim]Re-scrape warnings to get SENAMHI ID.[/dim]")
+            raise typer.Exit(1)
+
+        # Download shapefiles
+        downloader = ShapefileDownloader()
+        files = downloader.download_warning_shapefiles(warning)
+
+        if files:
+            console.print(f"\n[green]✓ Downloaded {len(files)} shapefile(s)[/green]")
+        else:
+            console.print("[yellow]No shapefiles downloaded.[/yellow]")
+
+    finally:
+        db.close()
+
+
+@geo_app.command(name="sync")
+def geo_sync(
+    warning_number: Annotated[str, typer.Argument(help="Warning number to sync")],
+):
+    """Parse shapefiles and save geometries to database (PostgreSQL only)."""
+    if not settings.supports_postgis:
+        console.print("[red]PostGIS is not available (using SQLite).[/red]")
+        console.print("[dim]Use PostgreSQL to enable geometry storage.[/dim]")
+        raise typer.Exit(1)
+
+    from app.scrapers.shapefile_downloader import ShapefileDownloader
+    from app.scrapers.shapefile_parser import ShapefileParser
+    from app.storage.geo_crud import save_warning_geometry
+
+    db = SessionLocal()
+    try:
+        # Find warning
+        warning = (
+            db.query(WarningAlert)
+            .filter(WarningAlert.warning_number == warning_number)
+            .first()
+        )
+
+        if not warning:
+            console.print(f"[red]Warning #{warning_number} not found.[/red]")
+            raise typer.Exit(1)
+
+        # Find downloaded shapefiles
+        downloader = ShapefileDownloader()
+        parser = ShapefileParser()
+
+        year = warning.valid_from.year
+        num_days = downloader.calculate_warning_days(warning)
+
+        console.print(
+            f"\n[bold]Syncing geometries for Warning #{warning_number}[/bold]"
+        )
+        console.print(f"[dim]Days: {num_days}[/dim]\n")
+
+        synced = 0
+        for day in range(1, num_days + 1):
+            zip_path = (
+                downloader.download_dir
+                / f"warning_{warning_number}_day_{day}_{year}.zip"
+            )
+
+            if not zip_path.exists():
+                console.print(f"  [yellow]Day {day}: Shapefile not found[/yellow]")
+                continue
+
+            # Parse geometry
+            geometry = parser.parse_shapefile_zip(zip_path)
+
+            if geometry:
+                # Save to database
+                url = downloader.build_shapefile_url(warning_number, day, year)
+                save_warning_geometry(
+                    db,
+                    warning_id=warning.id,
+                    day_number=day,
+                    geometry=geometry,
+                    shapefile_url=url,
+                    shapefile_path=zip_path,
+                )
+                synced += 1
+                console.print(f"  [green]✓ Day {day}: Synced geometry[/green]")
+            else:
+                console.print(f"  [red]✗ Day {day}: Failed to parse[/red]")
+
+        console.print(
+            f"\n[green]Synced {synced}/{num_days} geometries to database[/green]\n"
+        )
+
+    finally:
+        db.close()
+
+
+@geo_app.command(name="list")
+def geo_list():
+    """List downloaded shapefiles."""
+    from app.scrapers.shapefile_downloader import ShapefileDownloader
+    from app.scrapers.shapefile_parser import ShapefileParser
+
+    downloader = ShapefileDownloader()
+    parser = ShapefileParser()
+
+    files = downloader.list_downloaded_shapefiles()
+
+    if not files:
+        console.print("[yellow]No shapefiles downloaded.[/yellow]")
+        console.print(
+            "[dim]Use 'senamhi geo download <warning_number>' to download.[/dim]"
+        )
+        return
+
+    console.print(f"\n[bold]Downloaded Shapefiles ({len(files)})[/bold]\n")
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("File", style="cyan")
+    table.add_column("Size", style="white", justify="right")
+    table.add_column("Valid", style="green", justify="center")
+
+    for filepath in files:
+        size_kb = filepath.stat().st_size / 1024
+        is_valid = parser.validate_shapefile_zip(filepath)
+
+        table.add_row(
+            filepath.name,
+            f"{size_kb:.1f} KB",
+            "✓" if is_valid else "✗",
+        )
+
+    console.print(table)
+    console.print()
+
+
+@geo_app.command(name="status")
+def geo_status():
+    """Show geospatial backend information."""
+    from app.services.geo_service import GeoService
+
+    db = SessionLocal()
+    try:
+        geo_service = GeoService(db)
+        info = geo_service.get_backend_info()
+
+        console.print("\n[bold cyan]Geospatial Backend Status[/bold cyan]\n")
+        console.print(f"[bold]Database:[/bold] {info['database_type']}")
+        console.print(
+            f"[bold]PostGIS Available:[/bold] {'Yes' if info['postgis_available'] else 'No'}"
+        )
+        console.print(f"[bold]Spatial Queries:[/bold] {info['spatial_queries']}")
+        console.print()
+
+        if not info["postgis_available"]:
+            console.print(
+                "[yellow]💡 Tip: Use PostgreSQL to enable PostGIS features[/yellow]"
+            )
+            console.print(
+                "[dim]   docker compose -f docker-compose.postgres.yml up -d[/dim]"
+            )
+            console.print()
+
+    finally:
+        db.close()
+
+
+@geo_app.command(name="info")
+def geo_info(
+    warning_number: Annotated[str, typer.Argument(help="Warning number")],
+):
+    """Show geometry information for a warning."""
+    if not settings.supports_postgis:
+        console.print("[red]PostGIS not available (using SQLite).[/red]")
+        raise typer.Exit(1)
+
+    from app.storage.geo_crud import get_warning_geometries
+
+    db = SessionLocal()
+    try:
+        # Find warning
+        warning = (
+            db.query(WarningAlert)
+            .filter(WarningAlert.warning_number == warning_number)
+            .first()
+        )
+
+        if not warning:
+            console.print(f"[red]Warning #{warning_number} not found.[/red]")
+            raise typer.Exit(1)
+
+        # Get geometries
+        geometries = get_warning_geometries(db, warning.id)
+
+        if not geometries:
+            console.print(
+                f"[yellow]No geometries found for Warning #{warning_number}.[/yellow]"
+            )
+            console.print(
+                "[dim]Use 'senamhi geo sync {warning_number}' to parse shapefiles.[/dim]"
+            )
+            return
+
+        console.print(f"\n[bold]Warning #{warning_number} Geometries[/bold]\n")
+
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Day", style="cyan", justify="center")
+        table.add_column("Downloaded", style="white")
+        table.add_column("Has Geometry", style="green", justify="center")
+
+        for geom in geometries:
+            table.add_row(
+                str(geom.day_number),
+                geom.downloaded_at.strftime("%Y-%m-%d %H:%M")
+                if geom.downloaded_at
+                else "N/A",
+                "✓" if geom.geometry else "✗",
+            )
+
+        console.print(table)
+        console.print()
+
+    finally:
+        db.close()

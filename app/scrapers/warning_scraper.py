@@ -102,6 +102,7 @@ class WarningScraper:
                 return None
 
             return Warning(
+                senamhi_id=aviso_data["id"],
                 warning_number=aviso_data["numero"],
                 department=department,
                 severity=severity,

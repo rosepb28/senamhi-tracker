@@ -26,6 +26,7 @@ class WarningStatus(str, Enum):
 class Warning(BaseModel):
     """Weather warning/alert."""
 
+    senamhi_id: int
     warning_number: str
     department: str
     severity: WarningSeverity

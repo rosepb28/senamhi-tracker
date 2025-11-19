@@ -246,7 +246,6 @@ def get_scrape_runs(
 
 def save_warning(db: Session, warning: Warning) -> WarningAlert:
     """Save warning to database."""
-
     # Check if warning already exists for this department
     existing = (
         db.query(WarningAlert)
@@ -258,6 +257,7 @@ def save_warning(db: Session, warning: Warning) -> WarningAlert:
     )
 
     if existing:
+        existing.senamhi_id = warning.senamhi_id
         existing.severity = warning.severity.value
         existing.status = warning.status.value
         existing.title = warning.title
@@ -272,6 +272,7 @@ def save_warning(db: Session, warning: Warning) -> WarningAlert:
         return existing
 
     db_warning = WarningAlert(
+        senamhi_id=warning.senamhi_id,
         warning_number=warning.warning_number,
         department=warning.department,
         severity=warning.severity.value,

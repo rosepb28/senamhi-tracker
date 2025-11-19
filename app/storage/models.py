@@ -117,6 +117,9 @@ class WarningAlert(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
+    # SENAMHI internal ID (from API response)
+    senamhi_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
     warning_number: Mapped[str] = mapped_column(String, index=True)
     department: Mapped[str] = mapped_column(String, index=True)
     severity: Mapped[str] = mapped_column(String, index=True)
@@ -132,4 +135,17 @@ class WarningAlert(Base):
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     def __repr__(self) -> str:
-        return f"<WarningAlert(id={self.id}, number='{self.warning_number}', status='{self.status}')>"
+        return f"<WarningAlert(id={self.id}, senamhi_id={self.senamhi_id}, number='{self.warning_number}')>"
+
+
+# Add relationship only if PostGIS is available
+if settings.supports_postgis:
+    # Import here to avoid circular dependency
+    from sqlalchemy.orm import relationship as _relationship
+
+    WarningAlert.geometries = _relationship(
+        "WarningGeometry",
+        back_populates="warning",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
