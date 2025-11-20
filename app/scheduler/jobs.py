@@ -153,3 +153,165 @@ def run_warnings_scrape_job() -> None:
 
     finally:
         service.db.close()
+
+
+def run_shapefile_download_job() -> None:
+    """
+    Execute automatic shapefile download and sync for active warnings.
+
+    Only downloads and syncs warnings that:
+    - Are in 'vigente' or 'emitido' status
+    - Don't already have geometries in database
+    - Have PostGIS available
+    """
+    from config.settings import settings
+
+    if not settings.supports_postgis:
+        logger.info("PostGIS not available, skipping shapefile download job")
+        return
+
+    db = SessionLocal()
+
+    try:
+        logger.info("Starting scheduled shapefile download job")
+
+        from app.storage.models import WarningAlert
+        from app.storage.geo_models import WarningGeometry
+        from app.scrapers.shapefile_downloader import ShapefileDownloader
+        from app.scrapers.shapefile_parser import ShapefileParser
+        from app.storage.geo_crud import save_warning_geometry
+        from shapely.geometry import MultiPolygon
+
+        # Get active warnings (vigente or emitido)
+        active_warnings = (
+            db.query(WarningAlert)
+            .filter(WarningAlert.status.in_(["vigente", "emitido"]))
+            .all()
+        )
+
+        if not active_warnings:
+            logger.info("No active warnings found")
+            return
+
+        # Group by warning_number to avoid duplicates
+        warnings_by_number = {}
+        for warning in active_warnings:
+            if warning.warning_number not in warnings_by_number:
+                warnings_by_number[warning.warning_number] = warning
+
+        logger.info(f"Found {len(warnings_by_number)} unique active warning(s)")
+
+        downloader = ShapefileDownloader()
+        parser = ShapefileParser()
+
+        downloaded = 0
+        synced = 0
+        skipped = 0
+
+        for warning_number, warning in warnings_by_number.items():
+            # Check if already has geometries by warning_number
+            existing_geom = (
+                db.query(WarningGeometry)
+                .filter(WarningGeometry.warning_number == warning_number)
+                .first()
+            )
+
+            if existing_geom:
+                logger.debug(
+                    f"Warning #{warning_number} already has geometries, skipping"
+                )
+                skipped += 1
+                continue
+
+            logger.info(f"Processing warning #{warning_number}")
+
+            try:
+                # Calculate number of days
+                num_days = downloader.calculate_warning_days(warning)
+                year = warning.valid_from.year
+
+                # Download shapefiles
+                download_success = True
+                for day in range(1, num_days + 1):
+                    filepath = downloader.download_shapefile(warning_number, day, year)
+
+                    if filepath:
+                        logger.debug(f"  Day {day}: Downloaded")
+                        downloaded += 1
+                    else:
+                        logger.warning(f"  Day {day}: Download failed")
+                        download_success = False
+                        break
+
+                if not download_success:
+                    continue
+
+                # Parse and sync geometries
+                total_polygons = 0
+                for day in range(1, num_days + 1):
+                    zip_path = (
+                        downloader.download_dir
+                        / f"warning_{warning_number}_day_{day}_{year}.zip"
+                    )
+
+                    if not zip_path.exists():
+                        continue
+
+                    # Parse polygons
+                    polygons = parser.parse_shapefile_zip(zip_path)
+
+                    if not polygons:
+                        logger.warning(f"  Day {day}: Failed to parse")
+                        continue
+
+                    # Group by nivel
+                    polygons_by_nivel = {}
+                    for poly_data in polygons:
+                        nivel = poly_data["nivel"]
+                        if nivel not in polygons_by_nivel:
+                            polygons_by_nivel[nivel] = []
+                        polygons_by_nivel[nivel].append(poly_data["geometry"])
+
+                    # Save each nivel
+                    url = downloader.build_shapefile_url(warning_number, day, year)
+                    for nivel, geom_list in polygons_by_nivel.items():
+                        all_polys = []
+                        for mp in geom_list:
+                            if isinstance(mp, MultiPolygon):
+                                all_polys.extend(mp.geoms)
+                            else:
+                                all_polys.append(mp)
+
+                        combined_mp = MultiPolygon(all_polys)
+
+                        save_warning_geometry(
+                            db,
+                            warning_id=warning.id,
+                            warning_number=warning_number,
+                            day_number=day,
+                            geometry=combined_mp,
+                            nivel=nivel,
+                            shapefile_url=url,
+                            shapefile_path=zip_path,
+                        )
+                        total_polygons += 1
+
+                if total_polygons > 0:
+                    logger.info(f"  Synced {total_polygons} geometry record(s)")
+                    synced += 1
+
+            except Exception as e:
+                logger.error(f"  Error processing warning #{warning_number}: {e}")
+                continue
+
+        logger.info(
+            f"Shapefile download job completed: "
+            f"{downloaded} downloaded, {synced} synced, {skipped} skipped"
+        )
+
+    except Exception as e:
+        logger.error(f"Shapefile download job failed: {e}")
+        logger.debug(traceback.format_exc())
+
+    finally:
+        db.close()

@@ -55,3 +55,116 @@
     border-color: #badbcc;
     color: #0f5132;
 }
+
+/* ==================== Warning Map Styles ==================== */
+
+/* Map modal - more vertical */
+#map-modal .modal-dialog {
+    max-width: 900px;
+}
+
+.map-container {
+    width: 100%;
+    height: 600px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+#warning-map {
+    width: 100%;
+    height: 100%;
+}
+
+/* Leaflet popup customization */
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+}
+
+.leaflet-popup-content {
+    margin: 10px;
+    min-width: 200px;
+}
+
+.leaflet-popup-content h6 {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.leaflet-popup-content p {
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+/* Timeline controls */
+.map-timeline {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+.map-timeline .btn {
+    min-width: 80px;
+}
+
+/* Warning geometry nivel colors */
+/* Department boundary style */
+:root {
+    --nivel-1-color: #cccccc;  /* Light gray - almost transparent */
+    --nivel-2-color: #ffc107;  /* Yellow */
+    --nivel-3-color: #fd7e14;  /* Orange */
+    --nivel-4-color: #dc3545;  /* Red */
+    --nivel-default-color: #999999;  /* Gray */
+
+    --department-border-color: #000000;  /* Black borders for departments */
+}
+
+.warning-nivel-1 {
+    fill: var(--nivel-1-color);
+    fill-opacity: 0.1;  /* Very transparent for default areas */
+    stroke: var(--nivel-1-color);
+    stroke-width: 1.5px;
+    stroke-opacity: 0.3;
+}
+
+.warning-nivel-2 {
+    fill: var(--nivel-2-color);
+    fill-opacity: 0.5;
+    stroke: var(--nivel-2-color);
+    stroke-width: 2px;
+    stroke-opacity: 0.8;
+}
+
+.warning-nivel-3 {
+    fill: var(--nivel-3-color);
+    fill-opacity: 0.5;
+    stroke: var(--nivel-3-color);
+    stroke-width: 2px;
+    stroke-opacity: 0.8;
+}
+
+.warning-nivel-4 {
+    fill: var(--nivel-4-color);
+    fill-opacity: 0.5;
+    stroke: var(--nivel-4-color);
+    stroke-width: 2px;
+    stroke-opacity: 0.8;
+}
+
+.warning-nivel-default {
+    fill: var(--nivel-default-color);
+    fill-opacity: 0.3;
+    stroke: var(--nivel-default-color);
+    stroke-width: 1.5px;
+    stroke-opacity: 0.5;
+}
+
+/* Department boundaries */
+.department-boundary {
+    stroke: var(--department-border-color) !important;
+    stroke-width: 1.5px;
+    stroke-opacity: 0.6;
+    fill: none;
+}

@@ -18,14 +18,7 @@ def get_geojson_service():
 
 @api_bp.route("/warnings/<string:warning_number>/geometry")
 def get_warning_geometry(warning_number: str):
-    """
-    Get all geometries for a warning (all days).
-
-    Returns GeoJSON FeatureCollection with all days.
-
-    Example:
-        GET /api/warnings/418/geometry
-    """
+    """Get all geometries for a warning (all days)."""
     if not settings.supports_postgis:
         return jsonify(
             {
@@ -50,15 +43,19 @@ def get_warning_geometry(warning_number: str):
             ), 404
 
         # Get GeoJSON
-        geojson = service.warning_geometry_to_geojson(warning.id)
+        geojson = service.warning_geometry_to_geojson(warning_number=warning_number)
 
         if not geojson:
             return jsonify(
                 {
                     "error": "No geometries found",
-                    "message": "Warning has no associated geometries. Use 'senamhi geo sync' to parse shapefiles.",
+                    "message": "Warning has no associated geometries.",
                 }
             ), 404
+
+        # Add logging
+        feature_count = len(geojson.get("features", []))
+        print(f"API: Warning {warning_number} - Returning {feature_count} features")
 
         return jsonify(geojson)
 
@@ -162,6 +159,69 @@ def get_capabilities():
 
     finally:
         db.close()
+
+
+@api_bp.route("/departments/<string:department_name>/bounds")
+def get_department_bounds(department_name: str):
+    """
+    Get bounding box for a department.
+
+    Example:
+        GET /api/departments/LIMA/bounds
+        Returns: {"south": -12.5, "west": -77.5, "north": -11.5, "east": -76.5}
+    """
+    from app.services.boundaries_service import BoundariesService
+
+    service = BoundariesService()
+    bounds = service.get_department_bounds(department_name)
+
+    if not bounds:
+        return jsonify(
+            {"error": "Department not found", "department": department_name}
+        ), 404
+
+    return jsonify(bounds)
+
+
+@api_bp.route("/departments/<string:department_name>/geometry")
+def get_department_geometry(department_name: str):
+    """
+    Get GeoJSON geometry for a department.
+
+    Example:
+        GET /api/departments/LIMA/geometry
+        Returns: GeoJSON Feature with department polygon
+    """
+    from app.services.boundaries_service import BoundariesService
+
+    service = BoundariesService()
+    geojson = service.get_department_geojson(department_name)
+
+    if not geojson:
+        return jsonify(
+            {"error": "Department not found", "department": department_name}
+        ), 404
+
+    return jsonify(geojson)
+
+
+@api_bp.route("/departments/all/geometry")
+def get_all_departments_geometry():
+    """
+    Get GeoJSON for all departments.
+
+    Returns:
+        GeoJSON FeatureCollection with all department polygons
+    """
+    from app.services.boundaries_service import BoundariesService
+
+    service = BoundariesService()
+    geojson = service.get_all_departments_geojson()
+
+    if not geojson:
+        return jsonify({"error": "Departments data not available"}), 404
+
+    return jsonify(geojson)
 
 
 @api_bp.route("/warnings/<string:warning_number>/info")

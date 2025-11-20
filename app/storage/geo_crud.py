@@ -16,40 +16,30 @@ if settings.supports_postgis:
 def save_warning_geometry(
     db: Session,
     warning_id: int,
+    warning_number: str,
     day_number: int,
     geometry: "MultiPolygon",
+    nivel: int,
     shapefile_url: str | None = None,
     shapefile_path: Path | None = None,
 ) -> "WarningGeometry | None":
-    """
-    Save warning geometry to database (PostGIS only).
-
-    Args:
-        db: Database session
-        warning_id: Warning ID
-        day_number: Day number (1-based)
-        geometry: Shapely MultiPolygon
-        shapefile_url: URL where shapefile was downloaded
-        shapefile_path: Local path to shapefile
-
-    Returns:
-        WarningGeometry object or None if PostGIS not available
-    """
+    """Save warning geometry to database (PostGIS only)."""
     if not settings.supports_postgis:
         return None
 
-    # Check if geometry already exists
+    # Convert Shapely geometry to WKT
+    wkt_geom = WKTElement(geometry.wkt, srid=4326)
+
+    # Check by warning_number + day_number + nivel
     existing = (
         db.query(WarningGeometry)
         .filter(
-            WarningGeometry.warning_id == warning_id,
+            WarningGeometry.warning_number == warning_number,
             WarningGeometry.day_number == day_number,
+            WarningGeometry.nivel == nivel,
         )
         .first()
     )
-
-    # Convert Shapely geometry to WKT
-    wkt_geom = WKTElement(geometry.wkt, srid=4326)
 
     if existing:
         # Update existing
@@ -58,7 +48,6 @@ def save_warning_geometry(
         existing.shapefile_path = str(shapefile_path) if shapefile_path else None
         existing.downloaded_at = datetime.now()
         existing.updated_at = datetime.now()
-
         db.commit()
         db.refresh(existing)
         return existing
@@ -66,7 +55,9 @@ def save_warning_geometry(
     # Create new
     geom_record = WarningGeometry(
         warning_id=warning_id,
+        warning_number=warning_number,
         day_number=day_number,
+        nivel=nivel,
         geometry=wkt_geom,
         shapefile_url=shapefile_url,
         shapefile_path=str(shapefile_path) if shapefile_path else None,
@@ -128,6 +119,38 @@ def get_warning_geometry_by_day(
             WarningGeometry.day_number == day_number,
         )
         .first()
+    )
+
+
+def get_warning_geometries_by_number(
+    db: Session, warning_number: str
+) -> list["WarningGeometry"]:
+    """Get all geometries for a warning by warning_number."""
+    if not settings.supports_postgis:
+        return []
+
+    return (
+        db.query(WarningGeometry)
+        .filter(WarningGeometry.warning_number == warning_number)
+        .order_by(WarningGeometry.day_number, WarningGeometry.nivel)
+        .all()
+    )
+
+
+def get_warning_geometry_by_number_and_day(
+    db: Session, warning_number: str, day_number: int
+) -> list["WarningGeometry"]:
+    """Get geometries for a specific warning day by warning_number."""
+    if not settings.supports_postgis:
+        return []
+
+    return (
+        db.query(WarningGeometry)
+        .filter(
+            WarningGeometry.warning_number == warning_number,
+            WarningGeometry.day_number == day_number,
+        )
+        .all()
     )
 
 

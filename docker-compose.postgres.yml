@@ -7,7 +7,7 @@ services:
     env_file:
       - .env.docker
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,9 +27,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env.docker
-    environment:
-      # Override to use PostgreSQL
-      - DATABASE_URL=
     volumes:
       - ./logs:/app/logs
     networks:
@@ -55,7 +52,6 @@ services:
     env_file:
       - .env.docker
     environment:
-      - DATABASE_URL=
       - SCRAPE_ALL_DEPARTMENTS=True
     volumes:
       - ./logs:/app/logs

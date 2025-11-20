@@ -11,6 +11,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.scheduler.jobs import run_forecast_scrape_job
 
+from config.settings import settings
+
 TEST_DATABASE_URL = "sqlite:///./test_scheduler.db"
 
 test_engine = create_engine(
@@ -31,6 +33,9 @@ def db_session():
         Base.metadata.drop_all(bind=test_engine)
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 def test_create_scrape_run(db_session):
     """Test creating scrape run record."""
     run = crud.create_scrape_run(db_session, departments=["LIMA", "CUSCO"])
@@ -41,6 +46,9 @@ def test_create_scrape_run(db_session):
     assert run.started_at is not None
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 def test_update_scrape_run(db_session):
     """Test updating scrape run record."""
     run = crud.create_scrape_run(db_session, departments=["LIMA"])
@@ -59,6 +67,9 @@ def test_update_scrape_run(db_session):
     assert updated.finished_at is not None
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 def test_get_scrape_runs(db_session):
     """Test retrieving scrape runs."""
     crud.create_scrape_run(db_session, departments=["LIMA"])
@@ -69,6 +80,9 @@ def test_get_scrape_runs(db_session):
     assert len(runs) == 2
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 def test_get_scrape_runs_filtered(db_session):
     """Test filtering scrape runs by status."""
     run1 = crud.create_scrape_run(db_session, departments=["LIMA"])

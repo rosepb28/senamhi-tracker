@@ -10,7 +10,6 @@ from config.settings import settings
 if settings.supports_postgis:
     from geoalchemy2.functions import ST_AsGeoJSON
     from app.storage.geo_models import WarningGeometry
-    from app.storage.geo_crud import get_warning_geometries, get_warning_geometry_by_day
 
 
 class GeoJSONService:
@@ -21,13 +20,17 @@ class GeoJSONService:
         self.db = db
 
     def warning_geometry_to_geojson(
-        self, warning_id: int, day_number: int | None = None
+        self,
+        warning_id: int | None = None,
+        warning_number: str | None = None,
+        day_number: int | None = None,
     ) -> dict | None:
         """
         Convert warning geometry to GeoJSON Feature.
 
         Args:
-            warning_id: Warning ID
+            warning_id: Warning ID (deprecated, use warning_number instead)
+            warning_number: Warning number (e.g., "418") - preferred for multi-dept warnings
             day_number: Optional specific day (1-based). If None, returns all days.
 
         Returns:
@@ -36,24 +39,54 @@ class GeoJSONService:
         if not settings.supports_postgis:
             return None
 
-        # Get warning info
-        warning = (
-            self.db.query(WarningAlert).filter(WarningAlert.id == warning_id).first()
-        )
-
-        if not warning:
+        # Get warning info for metadata
+        if warning_number:
+            warning = (
+                self.db.query(WarningAlert)
+                .filter(WarningAlert.warning_number == warning_number)
+                .first()
+            )
+            if not warning:
+                return None
+        elif warning_id:
+            warning = (
+                self.db.query(WarningAlert)
+                .filter(WarningAlert.id == warning_id)
+                .first()
+            )
+            if not warning:
+                return None
+            warning_number = warning.warning_number
+        else:
             return None
+
+        # Query by warning_number instead of warning_id
+        from app.storage.geo_crud import (
+            get_warning_geometries_by_number,
+            get_warning_geometry_by_number_and_day,
+        )
 
         # Single day requested
         if day_number is not None:
-            geom = get_warning_geometry_by_day(self.db, warning_id, day_number)
-            if not geom or not geom.geometry:
+            geometries = get_warning_geometry_by_number_and_day(
+                self.db, warning_number, day_number
+            )
+            if not geometries:
                 return None
 
-            return self._create_geojson_feature(geom, warning)
+            features = [
+                self._create_geojson_feature(geom, warning)
+                for geom in geometries
+                if geom.geometry
+            ]
+
+            return {
+                "type": "FeatureCollection",
+                "features": features,
+            }
 
         # All days
-        geometries = get_warning_geometries(self.db, warning_id)
+        geometries = get_warning_geometries_by_number(self.db, warning_number)
         if not geometries:
             return None
 
@@ -84,6 +117,7 @@ class GeoJSONService:
                 "warning_id": warning.id,
                 "warning_number": warning.warning_number,
                 "day_number": geometry_record.day_number,
+                "nivel": geometry_record.nivel,
                 "title": warning.title,
                 "severity": warning.severity,
                 "status": warning.status,

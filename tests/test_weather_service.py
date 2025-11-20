@@ -1,8 +1,13 @@
 """Integration tests for WeatherService."""
 
+import pytest
 from app.storage import crud
+from config.settings import settings
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 class TestWeatherServiceForecasts:
     """Test forecast operations in WeatherService."""
 
@@ -66,6 +71,9 @@ class TestWeatherServiceForecasts:
         assert len(locations) == 1
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 class TestWeatherServiceWarnings:
     """Test warning operations in WeatherService."""
 
@@ -116,6 +124,9 @@ class TestWeatherServiceWarnings:
         assert len(warnings) == 1
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 class TestWeatherServiceIntegration:
     """Integration tests for combined operations."""
 

@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models.forecast import DailyForecast, LocationForecast
 from app.storage import crud
+from config.settings import settings
 
 TEST_DATABASE_URL = "sqlite:///./test_storage.db"
 
@@ -28,6 +29,9 @@ def db_session():
         Base.metadata.drop_all(bind=engine)
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 def test_get_or_create_location(db_session):
     """Test location creation."""
     location = crud.get_or_create_location(db_session, "CANTA", "LIMA", "CANTA - LIMA")
@@ -41,6 +45,9 @@ def test_get_or_create_location(db_session):
     assert location.id == location2.id
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 def test_save_forecast(db_session):
     """Test saving forecast."""
     pydantic_forecast = LocationForecast(
@@ -66,6 +73,9 @@ def test_save_forecast(db_session):
     assert saved[0].temp_max == 22
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 def test_get_locations(db_session):
     """Test getting all locations."""
     crud.get_or_create_location(db_session, "CANTA", "LIMA", "CANTA - LIMA")
@@ -76,6 +86,9 @@ def test_get_locations(db_session):
     assert len(locations) == 2
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 def test_get_latest_forecasts(db_session):
     """Test getting latest forecasts."""
     pydantic_forecast = LocationForecast(
