@@ -1,4 +1,3 @@
-// app/web/static/js/warning-map.js
 /**
  * Warning Map for Bootstrap Modal
  */
@@ -8,6 +7,17 @@ let currentWarningNumber = null;
 let currentDay = 1;
 let totalDays = 0;
 let allGeojsonData = null;
+let departmentBoundariesAdded = false;
+
+// OPTIMIZATION 1: Cache geometries by warning number
+let geometryCache = {};
+
+// OPTIMIZATION 2: Cache department boundaries
+let allDepartmentsGeojson = null;
+let targetDepartmentGeometry = null;
+
+// OPTIMIZATION 3: Precalculated timeline dates
+let timelineDates = [];
 
 /**
  * Initialize map when modal is shown
@@ -20,12 +30,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!warningMap) {
                 initMap();
             } else {
-                warningMap.invalidateSize(); // Refresh map size
+                warningMap.invalidateSize();
             }
         });
 
         mapModal.addEventListener('hidden.bs.modal', () => {
-            // Clean up
             currentDay = 1;
         });
     }
@@ -39,10 +48,8 @@ function initMap() {
 
     if (!mapElement || warningMap) return;
 
-    // Create map centered on Peru with higher zoom
     warningMap = L.map('warning-map').setView([-9.19, -75.0152], 6);
 
-    // Add OpenStreetMap tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19,
@@ -52,50 +59,57 @@ function initMap() {
 }
 
 /**
- * Load warning geometry
+ * Load warning geometry with caching
  */
 async function loadWarningMap(warningNumber) {
     currentWarningNumber = warningNumber;
-    allGeojsonData = null;
+    departmentBoundariesAdded = false;
+    targetDepartmentGeometry = null;  // Reset department cache
 
     document.getElementById('map-modal-title').textContent = `Warning #${warningNumber}`;
     showStatus('Loading geometries...', 'info');
 
     try {
-        const response = await fetch(`/api/warnings/${currentWarningNumber}/geometry`);
+        // OPTIMIZATION 1: Check cache first
+        if (geometryCache[warningNumber]) {
+            console.log(`✓ Using cached geometry for warning #${warningNumber}`);
+            allGeojsonData = geometryCache[warningNumber];
+        } else {
+            const response = await fetch(`/api/warnings/${currentWarningNumber}/geometry`);
 
-        if (!response.ok) {
-            const error = await response.json();
+            if (!response.ok) {
+                const error = await response.json();
 
-            if (response.status === 404) {
-                showStatus('No geometries available for this warning.', 'warning');
-                return;
+                if (response.status === 404) {
+                    showStatus('No geometries available for this warning.', 'warning');
+                    return;
+                }
+
+                throw new Error(error.message || 'Error loading geometry');
             }
 
-            throw new Error(error.message || 'Error loading geometry');
+            const geojson = await response.json();
+            allGeojsonData = geojson;
+            geometryCache[warningNumber] = geojson;  // Cache it
+            console.log(`✓ Cached geometry for warning #${warningNumber}`);
         }
 
-        const geojson = await response.json();
-
-        if (geojson.type === 'FeatureCollection') {
+        if (allGeojsonData.type === 'FeatureCollection') {
             const uniqueDays = new Set(
-                geojson.features.map(f => f.properties.day_number)
+                allGeojsonData.features.map(f => f.properties.day_number)
             );
             totalDays = uniqueDays.size;
 
-            // Determine initial day based on current date and warning status
-            const firstFeature = geojson.features[0];
+            const firstFeature = allGeojsonData.features[0];
             const validFrom = new Date(firstFeature.properties.valid_from);
             const validUntil = new Date(firstFeature.properties.valid_until);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
             if (today >= validFrom && today <= validUntil) {
-                // Warning is active, calculate current day
                 const daysDiff = Math.floor((today - validFrom) / (1000 * 60 * 60 * 24));
                 currentDay = Math.max(1, Math.min(daysDiff + 1, totalDays));
             } else {
-                // Warning is not active, start at day 1
                 currentDay = 1;
             }
         } else {
@@ -103,7 +117,7 @@ async function loadWarningMap(warningNumber) {
             currentDay = 1;
         }
 
-        createTimeline(totalDays);
+        createTimeline(totalDays, allGeojsonData.features);
 
         await showDay(currentDay);
 
@@ -125,12 +139,6 @@ async function showDay(day) {
     updateTimelineButtons();
 
     try {
-        if (!allGeojsonData) {
-            const response = await fetch(`/api/warnings/${currentWarningNumber}/geometry`);
-            const geojson = await response.json();
-            allGeojsonData = geojson;
-        }
-
         const dayFeatures = allGeojsonData.features.filter(
             f => f.properties.day_number === day
         );
@@ -140,7 +148,7 @@ async function showDay(day) {
             features: dayFeatures
         };
 
-        // Clear only warning GeoJSON layers (not department boundaries)
+        // Clear only warning GeoJSON layers
         warningMap.eachLayer((layer) => {
             if (layer instanceof L.GeoJSON && !layer.options.isDepartmentLayer) {
                 warningMap.removeLayer(layer);
@@ -153,64 +161,9 @@ async function showDay(day) {
             onEachFeature: bindPopup
         }).addTo(warningMap);
 
-        // On first day: add all departments and zoom to current one
-        if (day === 1) {
-            const departmentMatch = window.location.pathname.match(/\/department\/([^\/]+)/);
-            const departmentName = departmentMatch ? departmentMatch[1] : null;
-
-            try {
-                // Fetch ALL departments geometry
-                const allDeptsResponse = await fetch('/api/departments/all/geometry');
-                if (allDeptsResponse.ok) {
-                    const allDeptsGeojson = await allDeptsResponse.json();
-
-                    // Add all departments as boundary layer
-                    L.geoJSON(allDeptsGeojson, {
-                        style: {
-                            color: '#000000',
-                            weight: 1.5,
-                            opacity: 0.6,
-                            fill: false
-                        },
-                        isDepartmentLayer: true  // Mark as department layer
-                    }).addTo(warningMap);
-                }
-
-                // Zoom to current department only
-                if (departmentName) {
-                    const deptResponse = await fetch(`/api/departments/${departmentName}/geometry`);
-                    if (deptResponse.ok) {
-                        const deptGeojson = await deptResponse.json();
-                        const deptLayer = L.geoJSON(deptGeojson);
-                        warningMap.fitBounds(deptLayer.getBounds(), { padding: [50, 50] });
-                    } else {
-                        warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
-                    }
-                } else {
-                    warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
-                }
-            } catch (error) {
-                console.error('Error fetching departments:', error);
-                warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
-            }
-        }
-
-        // Update button labels with actual dates
-        if (dayFeatures.length > 0) {
-            const validFrom = new Date(dayFeatures[0].properties.valid_from);
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-            for (let i = 1; i <= totalDays; i++) {
-                const btn = document.getElementById(`timeline-day-${i}`);
-                if (btn) {
-                    const btnDate = new Date(validFrom);
-                    btnDate.setDate(btnDate.getDate() + (i - 1));
-                    const dd = String(btnDate.getDate()).padStart(2, '0');
-                    const mmm = monthNames[btnDate.getMonth()];
-                    btn.textContent = `${dd} ${mmm}`;
-                }
-            }
+        // OPTIMIZATION: Only load departments once on first day
+        if (day === 1 && !departmentBoundariesAdded) {
+            await loadDepartmentBoundaries(geoJsonLayer);
         }
 
     } catch (error) {
@@ -220,25 +173,114 @@ async function showDay(day) {
 }
 
 /**
- * Create timeline buttons
+ * Load department boundaries with caching
+ * OPTIMIZATION 2: Cache department geometries
  */
-function createTimeline(days) {
+async function loadDepartmentBoundaries(geoJsonLayer) {
+    const departmentMatch = window.location.pathname.match(/\/department\/([^\/]+)/);
+    const departmentName = departmentMatch ? departmentMatch[1] : null;
+
+    try {
+        // Fetch all departments if not cached
+        if (!allDepartmentsGeojson) {
+            console.log('Fetching all departments geometry...');
+            const allDeptsResponse = await fetch('/api/departments/all/geometry');
+            if (allDeptsResponse.ok) {
+                allDepartmentsGeojson = await allDeptsResponse.json();
+                console.log('✓ Cached all departments geometry');
+            }
+        }
+
+        // Add cached department boundaries
+        if (allDepartmentsGeojson) {
+            L.geoJSON(allDepartmentsGeojson, {
+                style: {
+                    color: '#000000',
+                    weight: 1.5,
+                    opacity: 0.6,
+                    fill: false
+                },
+                isDepartmentLayer: true
+            }).addTo(warningMap);
+
+            departmentBoundariesAdded = true;
+        }
+
+        // Zoom to current department
+        if (departmentName) {
+            if (!targetDepartmentGeometry) {
+                console.log(`Fetching ${departmentName} geometry for zoom...`);
+                const deptResponse = await fetch(`/api/departments/${departmentName}/geometry`);
+                if (deptResponse.ok) {
+                    targetDepartmentGeometry = await deptResponse.json();
+                    console.log(`✓ Cached ${departmentName} geometry`);
+                }
+            }
+
+            if (targetDepartmentGeometry) {
+                const deptLayer = L.geoJSON(targetDepartmentGeometry);
+                warningMap.fitBounds(deptLayer.getBounds(), { padding: [50, 50] });
+            } else {
+                warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
+            }
+        } else {
+            warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
+        }
+    } catch (error) {
+        console.error('Error fetching departments:', error);
+        warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
+    }
+}
+
+/**
+ * Create timeline buttons with actual dates
+ * OPTIMIZATION 3: Precalculate and cache dates
+ */
+function createTimeline(days, features) {
     const timeline = document.getElementById('map-timeline');
     timeline.innerHTML = '';
+    timelineDates = [];  // Reset cache
+
+    if (!features || features.length === 0) {
+        // Fallback to Day X if no features
+        for (let day = 1; day <= days; day++) {
+            const button = document.createElement('button');
+            button.className = 'btn btn-outline-primary';
+            button.id = `timeline-day-${day}`;
+            button.textContent = `Day ${day}`;
+            button.dataset.day = day;
+            button.onclick = () => showDay(day);
+            timeline.appendChild(button);
+        }
+        return;
+    }
+
+    // Get valid_from from first feature
+    const firstFeature = features[0];
+    const baseDate = new Date(firstFeature.properties.valid_from);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     for (let day = 1; day <= days; day++) {
         const button = document.createElement('button');
         button.className = 'btn btn-outline-primary';
         button.id = `timeline-day-${day}`;
 
-        // Calculate date for this day
-        // This will be populated from the first feature's valid_from date
-        button.textContent = `Day ${day}`;
-        button.dataset.day = day;
+        // Calculate and cache date for this day
+        const dayDate = new Date(baseDate);
+        dayDate.setDate(dayDate.getDate() + (day - 1));
+        timelineDates.push(dayDate);  // Cache for later use
 
+        const dd = String(dayDate.getDate()).padStart(2, '0');
+        const mmm = monthNames[dayDate.getMonth()];
+        button.textContent = `${dd} ${mmm}`;
+
+        button.dataset.day = day;
         button.onclick = () => showDay(day);
         timeline.appendChild(button);
     }
+
+    console.log(`✓ Timeline created with ${days} days`);
 }
 
 /**
@@ -265,7 +307,6 @@ function updateTimelineButtons() {
 function getFeatureStyle(feature) {
     const nivel = feature.properties?.nivel || 0;
 
-    // Map nivel to CSS classes (1-4 scale)
     const classMap = {
         1: 'warning-nivel-1',
         2: 'warning-nivel-2',
@@ -286,19 +327,10 @@ function bindPopup(feature, layer) {
 
     const props = feature.properties;
 
-    // Map nivel to color name (corrected)
-    const nivelNames = {
-        1: 'Transparente',
-        2: 'Amarillo',
-        3: 'Naranja',
-        4: 'Rojo'
-    };
-
     const popup = `
         <div>
             <h6 class="mb-2">Warning #${props.warning_number}</h6>
             <p class="mb-1"><strong>Day:</strong> ${props.day_number}</p>
-            <p class="mb-1"><strong>Level:</strong> Nivel ${props.nivel} (${nivelNames[props.nivel] || 'N/A'})</p>
             <p class="mb-1"><strong>Severity:</strong> <span class="badge" style="background-color: ${getSeverityColor(props.severity)}">${props.severity?.toUpperCase()}</span></p>
             <p class="mb-0"><strong>Department:</strong> ${props.department}</p>
         </div>
@@ -306,6 +338,7 @@ function bindPopup(feature, layer) {
 
     layer.bindPopup(popup);
 }
+
 /**
  * Get severity color
  */
