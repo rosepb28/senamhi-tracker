@@ -7,7 +7,11 @@ import time
 import schedule
 
 from config.settings import settings
-from app.scheduler.jobs import run_forecast_scrape_job, run_warnings_scrape_job
+from app.scheduler.jobs import (
+    run_forecast_scrape_job,
+    run_warnings_scrape_job,
+    run_shapefile_download_job,
+)
 from app.scheduler.logger import setup_logger
 
 logger = setup_logger()
@@ -64,11 +68,23 @@ class ForecastScheduler:
             run_warnings_scrape_job
         )
 
+        # Schedule shapefile download job (same interval as warnings)
+        if settings.supports_postgis:
+            schedule.every(settings.warning_scrape_interval).hours.do(
+                run_shapefile_download_job
+            )
+            logger.info(
+                f"Shapefile download interval: Every {settings.warning_scrape_interval} hours"
+            )
+
         # Run immediately if configured
         if settings.scheduler_start_immediately:
             logger.info("Running initial scrapes...")
             run_forecast_scrape_job()
             run_warnings_scrape_job()
+            # Run shapefile download
+            if settings.supports_postgis:
+                run_shapefile_download_job()
 
         # Calculate next run times
         jobs = schedule.get_jobs()

@@ -1,30 +1,80 @@
 # 🌤️ SENAMHI Tracker
 
-Web scraper and monitor for Peru's national weather service (SENAMHI) with historical tracking and automatic scheduling.
+> Centralized weather monitoring system for Peru - consolidating SENAMHI forecasts, warnings, and geospatial data in one place with multi-model comparison.
 
-## Features
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-- 🌍 **Multi-department scraping** - Scrape forecasts from all 24 Peruvian departments
-- 🚨 **Weather warnings** - Track active meteorological alerts by department (EMITIDO/VIGENTE)
-- 🌐 **Web Dashboard** - Flask-based UI to visualize forecasts and warnings
-- 📊 **Multi-model comparison** - Compare SENAMHI with Open Meteo models (GFS & ECMWF)
-- 📈 **Interactive charts** - Visualize temperature and precipitation with Chart.js
-- 💾 **SQLite database** - Store and query forecast and warning history
-- ⏰ **Automatic scheduling** - Run periodic scraping with configurable intervals
-- 🖥️ **CLI interface** - Rich terminal interface with tables and colors
-- 🐳 **Docker support** - Easy deployment with Docker Compose
-- 📝 **Comprehensive logging** - Track all scraping operations
+## 📖 Overview
 
-## Quick Start
+**The Problem:** SENAMHI's website scatters weather information across multiple pages and formats - forecasts are on one page, warnings require clicking through each department, and geospatial data requires GIS software.
 
-### Prerequisites
+**The Solution:** SENAMHI Tracker consolidates all meteorological data into a single, searchable database with:
+- **Unified access** to forecasts and warnings
+- **Interactive maps** showing warning coverage areas
+- **Multi-model comparison** (SENAMHI vs GFS vs ECMWF) to validate forecasts
+- **Historical tracking** to monitor forecast accuracy over time
+- **Automated monitoring** with scheduled updates
 
-- Python 3.12+
-- Poetry for dependency management
-- SQLite (included with Python)
-- Docker & Docker Compose (for containerized deployment)
+Perfect for researchers, meteorologists, emergency responders, and anyone tracking Peru's weather patterns.
 
-### Installation (Local)
+## 🎯 Key Features
+
+- 🌍 **Consolidated Data** - All 24 departments in one database
+- 🚨 **Real-time Warnings** - Track active meteorological alerts
+- 🗺️ **Interactive Maps** - Visualize warning areas with PostGIS
+- 📊 **Model Comparison** - Compare SENAMHI with global models (GFS, ECMWF)
+- ⏰ **Automated Updates** - Scheduled scraping every 6-24 hours
+- 🐳 **Easy Deployment** - Docker support with SQLite or PostgreSQL
+
+## 🏗️ Architecture
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        SENAMHI Tracker                          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                    ┌─────────┴─────────┐
+                    │                   │
+            ┌───────▼────────┐  ┌──────▼──────┐
+            │   Schedulers   │  │   CLI/Web   │
+            │   (Background) │  │   (Manual)  │
+            └───────┬────────┘  └───────┬─────┘
+                    │                   │
+        ┌───────────┼───────────────────┼──────────┐
+        │           │                   │          │
+   ┌────▼────┐ ┌───▼─────┐ ┌──────────▼─────┐ ┌──▼────────┐
+   │Forecasts│ │Warnings │ │ Shapefiles     │ │Open-Meteo │
+   │Scraper  │ │Scraper  │ │ Downloader     │ │API Client │
+   └────┬────┘ └───┬─────┘ └─────────┬──────┘ └───┬───────┘
+        │          │                 │            │
+        │      ┌───▼─────────────────▼────────────▼────┐
+        │      │                                       │
+        └─────►│  Database (SQLite / PostgreSQL)       │
+               │  - Forecasts                          │
+               │  - Warnings                           │
+               │  - Geometries (PostGIS)               │
+               │  - Locations + Coordinates            │
+               └───────────────┬───────────────────────┘
+                               │
+                    ┌──────────┴──────────┐
+                    │                     │
+              ┌─────▼──────┐      ┌──────▼──────┐
+              │ Web UI     │      │  REST API   │
+              │ (Flask)    │      │  (GeoJSON)  │
+              └────────────┘      └─────────────┘
+```
+
+**Data Flow:**
+1. **Scrapers** fetch data from SENAMHI website (forecasts + warnings)
+2. **Shapefile Downloader** gets geospatial data from SENAMHI GeoServer
+3. **Database** stores everything (SQLite for simple, PostgreSQL+PostGIS for maps)
+4. **Open-Meteo** provides alternative model forecasts (GFS, ECMWF)
+5. **Web UI** displays unified view with interactive maps and charts
+6. **REST API** serves GeoJSON for mapping applications
+
+## 🚀 Quick Start
+
+### Installation
 ```bash
 # Clone repository
 git clone https://github.com/rosepb28/senamhi-tracker.git
@@ -36,406 +86,134 @@ poetry install
 # Setup database
 poetry run alembic upgrade head
 
-# Configure (optional)
-cp .env.example .env
-# Edit .env with your preferences
-```
-
-### Installation (Docker)
-
-#### Setup
-```bash
-# Create Docker environment file
-cp .env.example .env.docker
-# Edit .env.docker with your preferences
-```
-
-#### SQLite (Default - Simplest)
-```bash
-# Start scheduler
-docker compose up -d
-
-# View logs
-docker compose logs -f senamhi-tracker
-
-# Manual scrape
-docker compose --profile manual up senamhi-scraper
-
-# Stop
-docker compose down
-```
-
-#### PostgreSQL + PostGIS (For geospatial features)
-```bash
-# Start PostgreSQL + scheduler
-docker compose -f docker-compose.postgres.yml up -d
-
-# View logs
-docker compose -f docker-compose.postgres.yml logs -f senamhi-tracker
-
-# Manual scrape
-docker compose -f docker-compose.postgres.yml --profile manual up senamhi-scraper
-
-# Stop (keep data)
-docker compose -f docker-compose.postgres.yml down
-
-# Stop and remove volumes (⚠️ deletes data)
-docker compose -f docker-compose.postgres.yml down -v
-```
-
-#### Access PostgreSQL directly
-```bash
-# Connect to database
-docker exec -it senamhi-postgres psql -U senamhi_user -d senamhi
-
-# Check PostGIS
-SELECT PostGIS_version();
-```
-
-## Usage
-
-### CLI Commands
-
-#### Scraping
-```bash
-# Scrape both forecasts and warnings (default)
-poetry run senamhi scrape
-
-# Scrape only forecasts
-poetry run senamhi scrape forecasts
-
-# Scrape only warnings
-poetry run senamhi scrape warnings
-
-# Scrape specific departments
-poetry run senamhi scrape forecasts --departments "LIMA,CUSCO"
-
-# Scrape all departments
-poetry run senamhi scrape forecasts --all
-
-# Force rescrape (replace existing data)
-poetry run senamhi scrape forecasts --force
-```
-
-#### Viewing Warnings
-```bash
-# List last 10 warnings (all)
-poetry run senamhi warnings list
-
-# List last 20 warnings
-poetry run senamhi warnings list --limit 20
-
-# List only active warnings (EMITIDO + VIGENTE)
-poetry run senamhi warnings active
-
-# Show specific warning details
-poetry run senamhi warnings show 409
-```
-
-#### Viewing Data
-```bash
-# List all locations
-poetry run senamhi list
-
-# Filter by department
-poetry run senamhi list --department LIMA
-
-# Show forecast for location
-poetry run senamhi show CANTA
-
-# View forecast history
-poetry run senamhi history CANTA 2025-11-13
-
-# Database status
-poetry run senamhi status
-```
-
-#### Scheduler
-```bash
-# Start scheduler daemon (foreground)
-poetry run senamhi daemon start
-
-# Check scheduler status
-poetry run senamhi daemon status
-
-# View scrape run history
-poetry run senamhi runs
-
-# View only successful runs
-poetry run senamhi runs --status success
-
-# View last 10 runs
-poetry run senamhi runs --limit 10
-```
-
-#### Web Dashboard
-
-Start the web server:
-```bash
-poetry run senamhi web
-```
-
-Then visit:
-- **Homepage**: http://localhost:5000
-- **Department view**: http://localhost:5000/department/LIMA
-- **Interactive charts**: Click "📊 View Chart" on any location
-
-The dashboard provides:
-- Real-time SENAMHI forecasts by location
-- Active weather warnings by department
-- Interactive model comparison (SENAMHI vs GFS vs ECMWF)
-- Configurable forecast periods (3, 5, or 7 days)
-
-#### Utilities
-```bash
-# List available departments
-poetry run senamhi departments
-```
-
-### Docker Usage
-```bash
-# Start scheduler (background)
-docker compose up -d
-
-# View logs
-docker compose logs -f senamhi-tracker
-
-# Stop scheduler
-docker compose stop
-
-# Manual scrape (one-time)
-docker compose run --rm senamhi-scraper
-
-# Scrape all departments (one-time)
-docker compose --profile manual up senamhi-scraper
-```
-
-## Configuration
-
-Configuration is done via environment variables in `.env` file:
-```bash
-# Scraping Configuration
-SCRAPE_ALL_DEPARTMENTS=False    # True to scrape all departments
-DEPARTMENTS=LIMA                 # Comma-separated list if not scraping all
-
-# Scheduler Configuration
-ENABLE_SCHEDULER=False           # Enable automatic scheduling
-FORECAST_SCRAPE_INTERVAL=24      # Hours between forecast scrapes
-WARNING_SCRAPE_INTERVAL=6        # Hours between warning scrapes
-SCHEDULER_START_IMMEDIATELY=True # Run immediately on start
-
-
-# Advanced
-MAX_RETRIES=3                    # Retry attempts on failure
-RETRY_DELAY_SECONDS=60           # Delay between retries
-SCRAPE_DELAY=2.0                 # Seconds between locations
-```
-
-See `.env.example` for all available options.
-
-### Location Coordinates
-
-Edit `config/coordinates.yaml` to add or update location coordinates for Open Meteo integration:
-```yaml
-LIMA:
-  LIMA ESTE: [-12.0464, -77.0428]
-  CANTA: [-11.4744, -76.6256]
-```
-
-Then populate the database:
-```bash
-poetry run python scripts/populate_coordinates.py --skip-existing
-```
-
-### Open Meteo Models
-
-Edit `config/openmeteo.yaml` to configure weather models and variables:
-```yaml
-models:
-  - id: gfs_seamless
-    name: GFS
-    colors:
-      temp: rgb(255, 99, 132)
-      precip: rgba(255, 99, 132, 0.7)
-```
-
-## Project Structure
-```
-senamhi-tracker/
-├── app/
-│   ├── cli/                  # CLI commands (Typer)
-│   ├── logging.py            # Centralized logging configuration
-│   ├── models/               # Pydantic models (forecast, warning)
-│   ├── scrapers/             # SENAMHI scraping logic
-│   ├── services/             # Business logic layer
-│   │   ├── weather_service.py   # Weather data operations
-│   │   ├── geo_service.py       # Geospatial queries (PostGIS/fallback)
-│   │   └── openmeteo.py         # Open-Meteo API client
-│   ├── storage/              # Database models and CRUD operations
-│   ├── scheduler/            # Background jobs and scheduling
-│   └── web/                  # Flask web application
-├── alembic/                  # Database migrations
-│   └── versions/             # Migration files
-├── config/
-│   ├── settings.py           # Centralized configuration (Pydantic)
-│   ├── coordinates.yaml      # Location coordinates for Open-Meteo
-│   └── openmeteo.yaml        # Weather model configuration
-├── scripts/                  # Production/maintenance scripts
-│   ├── populate_coordinates.py        # Update location coordinates
-│   ├── cleanup_old_warnings.py        # Remove expired warnings
-│   └── sync_coordinates_to_point.py   # Sync lat/lon to PostGIS (PostgreSQL)
-├── dev_tools/                # Development utilities
-│   ├── new_migration.sh      # Create database migrations
-│   └── reset_db.sh           # Reset database (destructive)
-├── tests/                    # Test suite with fixtures
-├── docker-compose.yml        # Docker setup (SQLite)
-├── docker-compose.postgres.yml  # Docker setup (PostgreSQL + PostGIS)
-└── data/                     # SQLite database (local development)
-```
-
-## Development
-
-### Running Tests
-```bash
-poetry run pytest -v
-```
-
-### Code Quality
-```bash
-# Fix + format
-poetry run ruff check . --fix && poetry run ruff format .
-
-# Run pre-commit hooks
-poetry run pre-commit run --all-files
-```
-
-### Database Migrations
-```bash
-# Create new migration
-./dev_tools/new_migration.sh "description"
-
-# Apply migrations
-poetry run alembic upgrade head
-
-# Rollback one migration
-poetry run alembic downgrade -1
-
-# Reset database (⚠️ deletes all data - development only)
-./dev_tools/reset_db.sh
-```
-
-### Maintenance Scripts
-```bash
-# Populate location coordinates (after adding new locations)
-poetry run python scripts/populate_coordinates.py --skip-existing
-
-# Remove expired warnings (production maintenance)
-poetry run python scripts/cleanup_old_warnings.py
-
-# Preview what would be deleted (dry run)
-poetry run python scripts/cleanup_old_warnings.py --dry-run
-```
-
-## Examples
-
-### Monitor Lima weather and warnings automatically
-```bash
 # Configure
-cat > .env << 'EOF'
-ENABLE_SCHEDULER=True
-FORECAST_SCRAPE_INTERVAL=24
-WARNING_SCRAPE_INTERVAL=6
-DEPARTMENTS=LIMA
-EOF
-
-# Start
-poetry run senamhi daemon start
+cp .env.example .env
 ```
 
-### Track active weather warnings
+### Basic Usage
 ```bash
-# Scrape current warnings
-poetry run senamhi scrape warnings
+# Scrape forecasts and warnings
+poetry run senamhi scrape
 
 # View active warnings
 poetry run senamhi warnings active
 
-# View specific warning
-poetry run senamhi warnings show 409
-
-# List all warnings (including expired)
-poetry run senamhi warnings list --limit 20
+# Start web dashboard
+poetry run senamhi web
+# Visit: http://localhost:5001
 ```
 
-### Track forecast changes
+### Docker (Recommended)
 ```bash
-# Day 1: Scrape
-poetry run senamhi scrape
+# Simple SQLite deployment
+docker compose up -d
 
-# Day 2: Scrape again
-poetry run senamhi scrape --force
-
-# View changes
-poetry run senamhi history CANTA 2025-11-13
+# Full PostgreSQL + PostGIS (with maps)
+docker compose -f docker-compose.postgres.yml up -d
 ```
 
-### Build national database
+## 📚 Documentation
+
+Comprehensive guides available in [`docs/`](docs/):
+
+- **[Installation Guide](docs/installation.md)** - Local and Docker setup
+- **[Configuration](docs/configuration.md)** - Environment variables
+- **[CLI Usage](docs/usage/cli.md)** - Command reference
+- **[Web Dashboard](docs/usage/web.md)** - Web interface guide
+- **[Geospatial Features](docs/features/geospatial.md)** - PostGIS and maps
+- **[Development](docs/development/setup.md)** - Contributing guide
+- **[Troubleshooting](docs/troubleshooting.md)** - Common issues
+
+## 💡 Use Cases
+
+### Emergency Response
+Monitor active warnings and view affected areas on interactive maps to coordinate response efforts.
+
+### Research & Analysis
+Track forecast accuracy over time, compare models, and analyze meteorological patterns.
+
+### Personal Weather Monitoring
+Get consolidated weather information for your region without navigating multiple websites.
+
+### Application Integration
+Use REST API to integrate Peru weather data into your applications.
+
+## 🛠️ Tech Stack
+
+- **Python 3.12+** - Core language
+- **Poetry** - Dependency management
+- **SQLAlchemy** - Database ORM
+- **PostgreSQL + PostGIS** - Geospatial database (optional)
+- **Flask** - Web framework
+- **Leaflet.js** - Interactive maps
+- **Chart.js** - Data visualization
+- **Docker** - Containerization
+- **Beautiful Soup** - Web scraping
+
+## 📊 Project Status
+
+**Current Version:** 0.1.0
+
+**Features:**
+- ✅ Forecast scraping (all 24 departments)
+- ✅ Warning alerts tracking
+- ✅ Geospatial visualization (PostGIS)
+- ✅ Multi-model comparison (Open-Meteo)
+- ✅ Automated scheduling
+- ✅ Web dashboard with interactive maps
+- ✅ REST API
+- ✅ Docker support
+
+**Roadmap:**
+- 📝 Historical forecast accuracy analysis
+- 📝 Email/SMS notifications for warnings
+
+## 📸 Screenshots
+
+### Dashboard Overview
+![Department View](docs/images/dashboard-department.png)
+*Consolidated view of forecasts and active warnings for Lima department*
+
+### Multi-Model Comparison
+![Forecast Chart](docs/images/dashboard-chart.png)
+*Compare SENAMHI forecasts with GFS and ECMWF models*
+
+### Interactive Warning Maps
+![Warning Map](docs/images/dashboard-map.png)
+*Geospatial visualization of warning areas with day-by-day progression*
+
+## 🤝 Contributing
+
+Contributions are welcome! See [Development Guide](docs/development/setup.md).
 ```bash
-# Scrape all departments
-poetry run senamhi scrape --all
+# Fork, clone, and install
+git clone your-fork
+poetry install
 
-# View statistics
-poetry run senamhi status
+# Create feature branch
+git checkout -b feat/amazing-feature
 
-# Query by department
-poetry run senamhi list --department CUSCO
+# Make changes and test
+poetry run pytest -v
+
+# Submit pull request
 ```
 
-## Troubleshooting
+## 📄 License
 
-### Database locked error
-If running multiple instances, ensure only one process accesses the database at a time.
+MIT License - see [LICENSE](LICENSE) file.
 
-### Missing data
-Check logs: `tail -f logs/scheduler.log`
+## 🙏 Acknowledgments
 
-### Docker issues
-```bash
-# Rebuild containers
-docker compose build --no-cache
+- **Data Sources:**
+  - [SENAMHI](https://www.senamhi.gob.pe/) - Official Peru weather service
+  - [SENAMHI GeoServer](https://idesep.senamhi.gob.pe/geoserver) - Geospatial data
+  - [INEI](https://www.inei.gob.pe/) - Peru administrative boundaries
+  - [Open-Meteo](https://open-meteo.com/) - Global weather models
 
-# Reset volumes
-docker compose down -v
-```
+- **Technologies:**
+  - Built with Python, Flask, PostgreSQL, PostGIS, SQLAlchemy, Leaflet.js, and Chart.js
 
-## API Rate Limits
+## ⚠️ Disclaimer
 
-⚠️ **Important**: Be mindful of rate limits when scraping:
-
-- **SENAMHI**: No official limit, but avoid excessive requests
-- **Open Meteo**: Free tier allows reasonable usage
-- Use the scheduler's configurable intervals to avoid abuse
-- Manual scraping should be done sparingly
-
-## Contributing
-
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Acknowledgments
-
-- Data provided by [SENAMHI](https://www.senamhi.gob.pe/)
-- Weather models from [Open Meteo](https://open-meteo.com/)
-- Built with Python, Flask, SQLAlchemy, and Chart.js
-
-## Disclaimer
-
-This project is for educational purposes. Please respect SENAMHI's terms of service and rate limits when scraping.
+This project is for educational and research purposes. Please respect SENAMHI's terms of service and rate limits. Not affiliated with SENAMHI.

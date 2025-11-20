@@ -8,7 +8,6 @@ from app.database import Base
 from app.services.weather_service import WeatherService
 from datetime import datetime, date
 from app.models.forecast import LocationForecast, DailyForecast
-
 from app.models.warning import Warning, WarningSeverity, WarningStatus
 
 
@@ -39,7 +38,6 @@ def weather_service(db_session):
 @pytest.fixture
 def sample_forecast_data():
     """Sample forecast data for testing."""
-
     return LocationForecast(
         location="LIMA ESTE",
         department="LIMA",
@@ -70,8 +68,8 @@ def sample_forecast_data():
 @pytest.fixture
 def sample_warning_data():
     """Sample warning data for testing."""
-
     return Warning(
+        senamhi_id=24963,
         warning_number="001-2025",
         department="LIMA",
         severity=WarningSeverity.YELLOW,

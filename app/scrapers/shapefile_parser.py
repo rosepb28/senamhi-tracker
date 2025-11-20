@@ -19,15 +19,15 @@ class ShapefileParser:
         """Initialize parser."""
         pass
 
-    def parse_shapefile_zip(self, zip_path: Path) -> MultiPolygon | None:
+    def parse_shapefile_zip(self, zip_path: Path) -> list[dict] | None:
         """
-        Parse a shapefile ZIP and extract geometry.
+        Parse a shapefile ZIP and extract individual polygons with their nivel.
 
         Args:
             zip_path: Path to shapefile ZIP file
 
         Returns:
-            MultiPolygon geometry or None if parsing failed
+            List of dicts with 'geometry' and 'nivel', or None if parsing failed
         """
         if not settings.supports_postgis:
             console.print(
@@ -43,37 +43,49 @@ class ShapefileParser:
                 console.print(f"[yellow]Empty shapefile: {zip_path.name}[/yellow]")
                 return None
 
-            # Combine all geometries into a single MultiPolygon
-            geometries = []
-            for geom in gdf.geometry:
+            # Convert to EPSG:4326 if needed (do it once for entire dataframe)
+            if gdf.crs and gdf.crs.to_epsg() != 4326:
+                gdf = gdf.to_crs(epsg=4326)
+
+            # Extract individual polygons with their nivel
+            polygons = []
+            for idx, row in gdf.iterrows():
+                geom = row.geometry
                 if geom is None:
                     continue
 
-                # Convert to EPSG:4326 (WGS84) if needed
-                if gdf.crs and gdf.crs.to_epsg() != 4326:
-                    gdf_wgs84 = gdf.to_crs(epsg=4326)
-                    geom = gdf_wgs84.geometry.iloc[0]
+                # Extract nivel (parse "Nivel 1" -> 1)
+                nivel_str = row.get("nivel", "Nivel 1")
+                try:
+                    nivel = (
+                        int(nivel_str.split()[-1])
+                        if isinstance(nivel_str, str)
+                        else int(nivel_str)
+                    )
+                except (ValueError, IndexError):
+                    nivel = 1
 
-                # Ensure it's a Polygon or MultiPolygon
+                # Convert Polygon to MultiPolygon if needed
                 if isinstance(geom, Polygon):
-                    geometries.append(geom)
+                    geom = MultiPolygon([geom])
                 elif isinstance(geom, MultiPolygon):
-                    geometries.extend(geom.geoms)
+                    pass  # Already MultiPolygon
+                else:
+                    continue  # Skip invalid geometries
 
-            if not geometries:
+                polygons.append({"geometry": geom, "nivel": nivel})
+
+            if not polygons:
                 console.print(
                     f"[yellow]No valid geometries found in {zip_path.name}[/yellow]"
                 )
                 return None
 
-            # Create MultiPolygon
-            multi_polygon = MultiPolygon(geometries)
-
             console.print(
-                f"[green]✓ Parsed {len(geometries)} polygon(s) from {zip_path.name}[/green]"
+                f"[green]✓ Parsed {len(polygons)} polygon(s) from {zip_path.name}[/green]"
             )
 
-            return multi_polygon
+            return polygons
 
         except Exception as e:
             console.print(f"[red]Error parsing {zip_path.name}: {e}[/red]")

@@ -10,7 +10,7 @@ from rich.table import Table
 from config.settings import settings
 from app.database import SessionLocal
 from app.services.weather_service import WeatherService
-from scripts.populate_coordinates import populate_coordinates
+from app.services.coordinates_service import populate_coordinates
 from app.storage.models import WarningAlert
 
 app = typer.Typer()
@@ -747,9 +747,11 @@ def geo_sync(
         console.print("[dim]Use PostgreSQL to enable geometry storage.[/dim]")
         raise typer.Exit(1)
 
+    from shapely.geometry import MultiPolygon
     from app.scrapers.shapefile_downloader import ShapefileDownloader
     from app.scrapers.shapefile_parser import ShapefileParser
     from app.storage.geo_crud import save_warning_geometry
+    from app.storage.geo_models import WarningGeometry  # 🆕
 
     db = SessionLocal()
     try:
@@ -764,6 +766,17 @@ def geo_sync(
             console.print(f"[red]Warning #{warning_number} not found.[/red]")
             raise typer.Exit(1)
 
+        # Delete existing geometries by warning_number
+        deleted = (
+            db.query(WarningGeometry)
+            .filter(WarningGeometry.warning_number == warning_number)
+            .delete()
+        )
+        db.commit()
+
+        if deleted > 0:
+            console.print(f"[dim]Deleted {deleted} existing geometries[/dim]")
+
         # Find downloaded shapefiles
         downloader = ShapefileDownloader()
         parser = ShapefileParser()
@@ -777,6 +790,8 @@ def geo_sync(
         console.print(f"[dim]Days: {num_days}[/dim]\n")
 
         synced = 0
+        total_saved = 0
+
         for day in range(1, num_days + 1):
             zip_path = (
                 downloader.download_dir
@@ -787,27 +802,56 @@ def geo_sync(
                 console.print(f"  [yellow]Day {day}: Shapefile not found[/yellow]")
                 continue
 
-            # Parse geometry
-            geometry = parser.parse_shapefile_zip(zip_path)
+            # Parse geometry (returns list of dicts with nivel)
+            polygons = parser.parse_shapefile_zip(zip_path)
 
-            if geometry:
-                # Save to database
-                url = downloader.build_shapefile_url(warning_number, day, year)
+            if not polygons:
+                console.print(f"  [red]✗ Day {day}: Failed to parse[/red]")
+                continue
+
+            # Group polygons by nivel
+            polygons_by_nivel = {}
+            for poly_data in polygons:
+                nivel = poly_data["nivel"]
+                if nivel not in polygons_by_nivel:
+                    polygons_by_nivel[nivel] = []
+                polygons_by_nivel[nivel].append(poly_data["geometry"])
+
+            # Save one MultiPolygon per nivel
+            url = downloader.build_shapefile_url(warning_number, day, year)
+            saved_count = 0
+
+            for nivel, geom_list in polygons_by_nivel.items():
+                # Combine all polygons of same nivel into one MultiPolygon
+                all_polys = []
+                for mp in geom_list:
+                    if isinstance(mp, MultiPolygon):
+                        all_polys.extend(mp.geoms)
+                    else:
+                        all_polys.append(mp)
+
+                combined_mp = MultiPolygon(all_polys)
+
                 save_warning_geometry(
                     db,
                     warning_id=warning.id,
+                    warning_number=warning_number,
                     day_number=day,
-                    geometry=geometry,
+                    geometry=combined_mp,
+                    nivel=nivel,
                     shapefile_url=url,
                     shapefile_path=zip_path,
                 )
-                synced += 1
-                console.print(f"  [green]✓ Day {day}: Synced geometry[/green]")
-            else:
-                console.print(f"  [red]✗ Day {day}: Failed to parse[/red]")
+                saved_count += 1
+
+            total_saved += saved_count
+            synced += 1
+            console.print(
+                f"  [green]✓ Day {day}: Synced {saved_count} nivel(s) ({len(polygons)} polygons total)[/green]"
+            )
 
         console.print(
-            f"\n[green]Synced {synced}/{num_days} geometries to database[/green]\n"
+            f"\n[green]Synced {total_saved} geometry record(s) across {synced}/{num_days} day(s)[/green]\n"
         )
 
     finally:

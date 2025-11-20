@@ -301,7 +301,7 @@ def get_active_warnings(
 
     query = db.query(WarningAlert).filter(
         WarningAlert.status.in_(["emitido", "vigente"]),
-        WarningAlert.valid_until >= now,  # ← Solo avisos vigentes
+        WarningAlert.valid_until >= now,
     )
 
     if department:

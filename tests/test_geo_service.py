@@ -1,11 +1,16 @@
 """Tests for GeoService with both SQLite and PostGIS."""
 
+import pytest
 from app.services.geo_service import GeoService
+from config.settings import settings
 
 
 class TestGeoServiceSQLite:
     """Test GeoService with SQLite (Haversine fallback)."""
 
+    @pytest.mark.skipif(
+        settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+    )
     def test_find_nearby_locations_haversine(self, db_session, sample_forecast_data):
         """Test finding nearby locations using Haversine formula."""
         from app.storage import crud
@@ -36,6 +41,9 @@ class TestGeoServiceSQLite:
         assert len(nearby) >= 1
         assert any(loc.location == "LIMA ESTE" for loc in nearby)
 
+    @pytest.mark.skipif(
+        settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+    )
     def test_find_nearby_locations_no_results(self, db_session):
         """Test search with no results."""
         geo_service = GeoService(db_session)
@@ -49,6 +57,9 @@ class TestGeoServiceSQLite:
 
         assert len(nearby) == 0
 
+    @pytest.mark.skipif(
+        settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+    )
     def test_backend_info_sqlite(self, db_session):
         """Test backend info returns SQLite information."""
         geo_service = GeoService(db_session)
@@ -58,6 +69,9 @@ class TestGeoServiceSQLite:
         assert info["database_type"] == "SQLite"
         assert "Python fallback" in info["spatial_queries"]
 
+    @pytest.mark.skipif(
+        settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+    )
     def test_sync_points_not_available_sqlite(self, db_session):
         """Test that sync operations return False/0 on SQLite."""
         geo_service = GeoService(db_session)

@@ -16,8 +16,6 @@ console = Console()
 class ShapefileDownloader:
     """Download shapefiles for SENAMHI weather warnings."""
 
-    GEOSERVER_BASE = "https://idesep.senamhi.gob.pe/geoserver/g_aviso/ows"
-
     def __init__(self, download_dir: Path | None = None):
         """
         Initialize downloader.
@@ -25,6 +23,7 @@ class ShapefileDownloader:
         Args:
             download_dir: Directory to save shapefiles (default: data/shapefiles)
         """
+        self.geoserver_base = settings.senamhi_geoserver_url
         self.download_dir = download_dir or Path("data/shapefiles")
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self.timeout = settings.request_timeout
@@ -61,7 +60,7 @@ class ShapefileDownloader:
 
         # Build query string
         query_parts = [f"{k}={v}" for k, v in params.items()]
-        return f"{self.GEOSERVER_BASE}?{'&'.join(query_parts)}"
+        return f"{self.geoserver_base}?{'&'.join(query_parts)}"
 
     def calculate_warning_days(self, warning: WarningAlert) -> int:
         """

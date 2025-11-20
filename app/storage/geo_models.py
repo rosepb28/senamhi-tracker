@@ -30,9 +30,14 @@ class WarningGeometry(Base):
     warning_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("warnings.id"), nullable=False, index=True
     )
+    # Warning number (shared across departments)
+    warning_number: Mapped[str] = mapped_column(String, nullable=False, index=True)
 
     # Day number (1-based, relative to warning start date)
     day_number: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Warning level (may be different for each geometry)
+    nivel: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Shapefile metadata
     shapefile_url: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -62,7 +67,7 @@ class WarningGeometry(Base):
     if settings.supports_postgis:
         __table_args__ = (
             Index("idx_warning_geometry", "geometry", postgresql_using="gist"),
-            Index("idx_warning_day", "warning_id", "day_number"),
+            Index("idx_warning_number_day", "warning_number", "day_number"),
         )
     else:
         __table_args__ = (Index("idx_warning_day", "warning_id", "day_number"),)

@@ -1,8 +1,15 @@
 """Integration tests for WeatherService."""
 
+import pytest
 from app.storage import crud
+from config.settings import settings
+from app.models.warning import WarningStatus
+from datetime import datetime, timedelta, date
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 class TestWeatherServiceForecasts:
     """Test forecast operations in WeatherService."""
 
@@ -66,6 +73,9 @@ class TestWeatherServiceForecasts:
         assert len(locations) == 1
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 class TestWeatherServiceWarnings:
     """Test warning operations in WeatherService."""
 
@@ -116,6 +126,9 @@ class TestWeatherServiceWarnings:
         assert len(warnings) == 1
 
 
+@pytest.mark.skipif(
+    settings.supports_postgis, reason="PostGIS available, skip SQLite tests"
+)
 class TestWeatherServiceIntegration:
     """Integration tests for combined operations."""
 
@@ -123,8 +136,15 @@ class TestWeatherServiceIntegration:
         self, weather_service, sample_forecast_data, sample_warning_data
     ):
         """Test retrieving all data for a department."""
+
         # Save sample data
         crud.save_forecast(weather_service.db, sample_forecast_data)
+
+        # Ensure warning is active with future dates
+        now = datetime.now()
+        sample_warning_data.status = WarningStatus.VIGENTE
+        sample_warning_data.valid_from = now
+        sample_warning_data.valid_until = now + timedelta(days=2)
         crud.save_warning(weather_service.db, sample_warning_data)
 
         # Retrieve department data
@@ -150,7 +170,6 @@ class TestWeatherServiceIntegration:
 
     def test_forecast_history(self, weather_service, sample_forecast_data):
         """Test forecast history retrieval."""
-        from datetime import date
 
         # Save sample data
         crud.save_forecast(weather_service.db, sample_forecast_data)

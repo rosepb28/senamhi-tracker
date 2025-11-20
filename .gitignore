@@ -214,9 +214,11 @@ __marimo__/
 *.sqlite3
 
 # Project specific
-data/
-!data/.gitkeep
+data/shapefiles/
+data/*.db
+!data/boundaries/
 .DS_Store
+
 # Test database
 test_storage.db
 

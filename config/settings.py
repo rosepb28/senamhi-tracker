@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     senamhi_warnings_api: str = (
         "https://www.senamhi.gob.pe/app_senamhi/sisper/api/avisoMeteoroCabEmergencia"
     )
+    senamhi_geoserver_url: str = "https://idesep.senamhi.gob.pe/geoserver/g_aviso/ows"
 
     # Database configuration
     database_url: str = "sqlite:///./data/weather.db"

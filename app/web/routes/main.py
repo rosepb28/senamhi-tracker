@@ -3,6 +3,7 @@ from flask import Blueprint, render_template
 from app.database import SessionLocal
 from app.services.openmeteo import OpenMeteoClient
 from app.storage import crud
+from config.settings import settings
 
 bp = Blueprint("main", __name__)
 
@@ -54,9 +55,33 @@ def department(name):
         # Get active warnings for THIS department only
         active_warnings = crud.get_active_warnings(db, department=dept_name)
 
+        # Check which warnings have geometries (only if PostGIS available)
+        warnings_with_geo = []
+
+        if settings.supports_postgis:
+            from app.storage.geo_models import WarningGeometry
+
+            for warning in active_warnings:
+                # Check by warning_number instead of warning_id
+                warning_with_geo = (
+                    db.query(WarningGeometry)
+                    .filter(WarningGeometry.warning_number == warning.warning_number)
+                    .first()
+                )
+
+                has_geometry = warning_with_geo is not None
+
+                warnings_with_geo.append(
+                    {"warning": warning, "has_geometry": has_geometry}
+                )
+        else:
+            warnings_with_geo = [
+                {"warning": w, "has_geometry": False} for w in active_warnings
+            ]
+
         # Initialize Open Meteo client
         openmeteo_client = OpenMeteoClient()
-        openmeteo_config = openmeteo_client.get_config()  # ← Obtener config
+        openmeteo_config = openmeteo_client.get_config()
 
         # Get latest forecasts for each location + Open Meteo data
         location_forecasts = []
@@ -88,7 +113,7 @@ def department(name):
             "department.html",
             department=dept_name,
             locations=location_forecasts,
-            warnings=active_warnings,
+            warnings=warnings_with_geo,
             openmeteo_config=openmeteo_config,
         )
 

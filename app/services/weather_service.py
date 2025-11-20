@@ -1,7 +1,8 @@
 """Weather service layer - centralizes business logic."""
 
 from typing import Protocol
-
+from datetime import datetime
+from rich.console import Console
 from sqlalchemy.orm import Session
 
 from app.scrapers.forecast_scraper import ForecastScraper
@@ -9,6 +10,8 @@ from app.scrapers.warning_scraper import WarningScraper
 from app.storage import crud
 from app.storage.models import Forecast, Location, ScrapeRun, WarningAlert
 from config.settings import settings
+
+console = Console()
 
 
 class DatabaseSession(Protocol):
@@ -110,6 +113,9 @@ class WeatherService:
         Returns:
             Dict with scrape results
         """
+        # First, update expired warnings
+        self._update_expired_warnings()
+
         warnings = self.warning_scraper.scrape_warnings()
 
         if not warnings:
@@ -273,3 +279,21 @@ class WeatherService:
     ) -> list[ScrapeRun]:
         """Get recent scrape runs."""
         return crud.get_scrape_runs(self.db, limit=limit, status=status)
+
+    def _update_expired_warnings(self):
+        """Mark expired warnings as 'vencido'."""
+
+        now = datetime.now()
+
+        # Find warnings that are expired but not marked as vencido
+        expired_count = (
+            self.db.query(WarningAlert)
+            .filter(WarningAlert.valid_until < now, WarningAlert.status != "vencido")
+            .update({"status": "vencido"}, synchronize_session=False)
+        )
+
+        if expired_count > 0:
+            self.db.commit()
+        console.print(
+            f"[dim]Updated {expired_count} expired warning(s) to 'vencido'[/dim]"
+        )
