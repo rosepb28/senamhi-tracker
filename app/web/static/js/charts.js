@@ -114,19 +114,15 @@ function createWeatherChart(canvas, data, config, days = 3) {
     const maxHours = days * 24;
     const timestamps = allTimestamps.slice(0, maxHours);
 
-    // Sample every 3rd hour to reduce clutter
-    const sampledIndices = timestamps
-        .map((ts, idx) => ({ ts, idx }))
-        .filter((_, i) => i % 3 === 0)
-        .map(item => item.idx);
-
+    // FIX BUG 3: Use all hourly data instead of sampling every 3rd hour
+    const sampledIndices = timestamps.map((_, idx) => idx);
     const sampledTimestamps = sampledIndices.map(i => timestamps[i]);
 
     // Create datasets for each model
     Object.entries(models).forEach(([modelName, modelData]) => {
         const color = colors[modelName] || colors['gfs_seamless'];
 
-        // Sample data to match timestamps
+        // Get data for all hours
         const sampledTemp = sampledIndices.map(i => modelData.temperature[i]);
         const sampledPrecip = sampledIndices.map(i => modelData.precipitation[i]);
 
@@ -139,7 +135,9 @@ function createWeatherChart(canvas, data, config, days = 3) {
             yAxisID: 'temp',
             tension: 0.4,
             modelName: modelName,
-            borderWidth: 2
+            borderWidth: 2,
+            pointRadius: 0,  // Hide points for cleaner look
+            pointHoverRadius: 4  // Show on hover
         });
 
         // Precipitation dataset (bar)
@@ -150,19 +148,25 @@ function createWeatherChart(canvas, data, config, days = 3) {
             borderColor: color.precip,
             yAxisID: 'precip',
             type: 'bar',
-            modelName: modelName
+            modelName: modelName,
+            barPercentage: 0.9,
+            categoryPercentage: 1.0
         });
     });
 
-    // Build x-axis labels
-    const xLabels = sampledTimestamps.map(ts => {
+    // Build x-axis labels (show every 6 hours for readability)
+    const xLabels = sampledTimestamps.map((ts, idx) => {
         const date = new Date(ts);
-        return date.toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            hour12: false
-        });
+        // Only show label every 6 hours to avoid clutter
+        if (idx % 6 === 0) {
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                hour12: false
+            });
+        }
+        return '';  // Empty string for other hours
     });
 
     return new Chart(ctx, {
@@ -184,6 +188,17 @@ function createWeatherChart(canvas, data, config, days = 3) {
                 },
                 tooltip: {
                     callbacks: {
+                        title: function(context) {
+                            // Show full timestamp in tooltip
+                            const date = new Date(sampledTimestamps[context[0].dataIndex]);
+                            return date.toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: false
+                            });
+                        },
                         label: function(context) {
                             const modelName = context.dataset.modelName;
                             const modelConfig = config.models.find(m => m.id === modelName);
@@ -207,7 +222,8 @@ function createWeatherChart(canvas, data, config, days = 3) {
                 x: {
                     ticks: {
                         maxRotation: 45,
-                        minRotation: 45
+                        minRotation: 45,
+                        autoSkip: false  // Don't auto-skip, we control via empty strings
                     }
                 },
                 temp: {

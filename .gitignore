@@ -239,3 +239,8 @@ htmlcov/
 
 # Docker environment
 .env.docker
+
+# Exploration notebooks
+old/
+*.ipynb
+.ipynb_checkpoints/

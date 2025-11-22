@@ -7,20 +7,20 @@ models:
   - id: gfs_seamless
     name: GFS
     colors:
-      temp: rgb(255, 99, 132)
-      temp_bg: rgba(255, 99, 132, 0.1)
-      precip: rgba(255, 99, 132, 0.7)
-      wind: rgba(255, 159, 64, 0.3)
-      wind_border: rgba(255, 159, 64, 0.6)
+      temp: '#BA68C8'
+      temp_bg: 'rgba(186, 104, 200, 0.1)'
+      precip: 'rgba(186, 104, 200, 0.7)'
+      wind: 'rgba(186, 104, 200, 0.3)'
+      wind_border: 'rgba(186, 104, 200, 0.6)'
 
   - id: ecmwf_ifs
     name: ECMWF
     colors:
-      temp: rgb(54, 162, 235)
-      temp_bg: rgba(54, 162, 235, 0.1)
-      precip: rgba(54, 162, 235, 0.7)
-      wind: rgba(75, 192, 192, 0.3)
-      wind_border: rgba(75, 192, 192, 0.6)
+      temp: '#81C784'
+      temp_bg: 'rgba(129, 199, 132, 0.1)'
+      precip: 'rgba(129, 199, 132, 0.7)'
+      wind: 'rgba(129, 199, 132, 0.3)'
+      wind_border: 'rgba(129, 199, 132, 0.6)'
 
 # Variables to fetch and display
 variables:
