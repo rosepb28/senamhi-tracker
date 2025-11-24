@@ -1,3 +1,4 @@
+// app/web/static/js/warning-map.js
 /**
  * Warning Map for Bootstrap Modal
  */
@@ -9,15 +10,19 @@ let totalDays = 0;
 let allGeojsonData = null;
 let departmentBoundariesAdded = false;
 
-// OPTIMIZATION 1: Cache geometries by warning number
+// Cache geometries by warning number
 let geometryCache = {};
 
-// OPTIMIZATION 2: Cache department boundaries
+// Cache department boundaries
 let allDepartmentsGeojson = null;
 let targetDepartmentGeometry = null;
 
-// OPTIMIZATION 3: Precalculated timeline dates
+// Precalculated timeline dates
 let timelineDates = [];
+
+// 🆕 WARNING DETAILS CACHE
+let warningDetailsCache = {};
+let currentWarningDetails = null;
 
 /**
  * Initialize map when modal is shown
@@ -36,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         mapModal.addEventListener('hidden.bs.modal', () => {
             currentDay = 1;
+            currentWarningDetails = null;
         });
     }
 });
@@ -59,18 +65,102 @@ function initMap() {
 }
 
 /**
+ * 🆕 Load warning details with caching
+ */
+async function loadWarningDetails(warningNumber, department) {
+    const cacheKey = `${warningNumber}-${department}`;
+    
+    if (warningDetailsCache[cacheKey]) {
+        console.log(`✓ Using cached details for ${cacheKey}`);
+        return warningDetailsCache[cacheKey];
+    }
+    
+    try {
+        const response = await fetch(`/api/warnings/${warningNumber}/details/${department}`);
+        
+        if (!response.ok) {
+            console.error(`Failed to fetch details: ${response.status}`);
+            return null;
+        }
+        
+        const data = await response.json();
+        warningDetailsCache[cacheKey] = data;
+        console.log(`✓ Cached details for ${cacheKey}`);
+        
+        return data;
+    } catch (error) {
+        console.error('Error loading warning details:', error);
+        return null;
+    }
+}
+
+/**
+ * Display warning details in modal
+ */
+function displayWarningDetails(details, dayNumber) {
+    const container = document.getElementById('warning-details-container');
+    
+    if (!container) return;
+    
+    if (!details) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    // Find the day's details
+    const dayDetails = details.days.find(d => d.day_number === dayNumber);
+    
+    if (!dayDetails) {
+        container.innerHTML = '<p class="text-muted">No details available for this day.</p>';
+        return;
+    }
+    
+    // Severity names for badge
+    const severityNames = {
+        1: 'VERDE',
+        2: 'AMARILLO',
+        3: 'NARANJA',
+        4: 'ROJO'
+    };
+    
+    const severityName = severityNames[dayDetails.nivel] || 'N/A';
+    
+    container.innerHTML = `
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong> Warning Details</strong>
+            </div>
+            <div class="card-body">
+                <p class="mb-3">${dayDetails.description}</p>
+                
+                ${dayDetails.affected_provinces && dayDetails.affected_provinces.length > 0 ? `
+                    <div class="mt-3">
+                        <strong class="d-block mb-2">Affected Provinces (${dayDetails.affected_provinces.length}):</strong>
+                        <div class="d-flex flex-wrap gap-1">
+                            ${dayDetails.affected_provinces.map(p => 
+                                `<span class="badge bg-secondary">${p}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+/**
  * Load warning geometry with caching
  */
 async function loadWarningMap(warningNumber) {
     currentWarningNumber = warningNumber;
     departmentBoundariesAdded = false;
-    targetDepartmentGeometry = null;  // Reset department cache
+    targetDepartmentGeometry = null;
 
     document.getElementById('map-modal-title').textContent = `Warning #${warningNumber}`;
     showStatus('Loading geometries...', 'info');
 
     try {
-        // OPTIMIZATION 1: Check cache first
+        // Check cache first
         if (geometryCache[warningNumber]) {
             console.log(`✓ Using cached geometry for warning #${warningNumber}`);
             allGeojsonData = geometryCache[warningNumber];
@@ -90,7 +180,7 @@ async function loadWarningMap(warningNumber) {
 
             const geojson = await response.json();
             allGeojsonData = geojson;
-            geometryCache[warningNumber] = geojson;  // Cache it
+            geometryCache[warningNumber] = geojson;
             console.log(`✓ Cached geometry for warning #${warningNumber}`);
         }
 
@@ -118,8 +208,25 @@ async function loadWarningMap(warningNumber) {
         }
 
         createTimeline(totalDays, allGeojsonData.features);
-
         await showDay(currentDay);
+
+        // Load warning details
+        const departmentMatch = window.location.pathname.match(/\/department\/([^\/]+)/);
+        const departmentName = departmentMatch ? departmentMatch[1] : null;
+        
+        if (departmentName) {
+            currentWarningDetails = await loadWarningDetails(warningNumber, departmentName);
+            if (currentWarningDetails) {
+                displayWarningDetails(currentWarningDetails, currentDay);
+                
+                // Update modal title with warning title
+                const warningTitle = allGeojsonData.features[0]?.properties?.title || '';
+                if (warningTitle) {
+                    document.getElementById('map-modal-title').textContent = 
+                        `Warning #${warningNumber} - ${warningTitle}`;
+                }
+            }
+        }
 
         hideStatus();
 
@@ -161,9 +268,14 @@ async function showDay(day) {
             onEachFeature: bindPopup
         }).addTo(warningMap);
 
-        // OPTIMIZATION: Only load departments once on first day
+        // Only load departments once on first day
         if (day === 1 && !departmentBoundariesAdded) {
             await loadDepartmentBoundaries(geoJsonLayer);
+        }
+
+        // 🆕 Update warning details for this day
+        if (currentWarningDetails) {
+            displayWarningDetails(currentWarningDetails, day);
         }
 
     } catch (error) {
@@ -174,7 +286,6 @@ async function showDay(day) {
 
 /**
  * Load department boundaries with caching
- * OPTIMIZATION 2: Cache department geometries
  */
 async function loadDepartmentBoundaries(geoJsonLayer) {
     const departmentMatch = window.location.pathname.match(/\/department\/([^\/]+)/);
@@ -219,30 +330,28 @@ async function loadDepartmentBoundaries(geoJsonLayer) {
 
             if (targetDepartmentGeometry) {
                 const deptLayer = L.geoJSON(targetDepartmentGeometry);
-                warningMap.fitBounds(deptLayer.getBounds(), { padding: [50, 50] });
+                warningMap.fitBounds(deptLayer.getBounds(), { padding: [30, 30] });
             } else {
-                warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
+                warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [30, 30] });
             }
         } else {
-            warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
+            warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [30, 30] });
         }
     } catch (error) {
         console.error('Error fetching departments:', error);
-        warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [50, 50] });
+        warningMap.fitBounds(geoJsonLayer.getBounds(), { padding: [30, 30] });
     }
 }
 
 /**
  * Create timeline buttons with actual dates
- * OPTIMIZATION 3: Precalculate and cache dates
  */
 function createTimeline(days, features) {
     const timeline = document.getElementById('map-timeline');
     timeline.innerHTML = '';
-    timelineDates = [];  // Reset cache
+    timelineDates = [];
 
     if (!features || features.length === 0) {
-        // Fallback to Day X if no features
         for (let day = 1; day <= days; day++) {
             const button = document.createElement('button');
             button.className = 'btn btn-outline-primary';
@@ -255,7 +364,6 @@ function createTimeline(days, features) {
         return;
     }
 
-    // Get valid_from from first feature
     const firstFeature = features[0];
     const baseDate = new Date(firstFeature.properties.valid_from);
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -266,10 +374,9 @@ function createTimeline(days, features) {
         button.className = 'btn btn-outline-primary';
         button.id = `timeline-day-${day}`;
 
-        // Calculate and cache date for this day
         const dayDate = new Date(baseDate);
         dayDate.setDate(dayDate.getDate() + (day - 1));
-        timelineDates.push(dayDate);  // Cache for later use
+        timelineDates.push(dayDate);
 
         const dd = String(dayDate.getDate()).padStart(2, '0');
         const mmm = monthNames[dayDate.getMonth()];

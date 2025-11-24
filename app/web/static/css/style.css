@@ -1,3 +1,5 @@
+/* app/web/static/css/style.css */
+
 .hover-shadow {
     transition: box-shadow 0.3s ease;
 }
@@ -110,20 +112,24 @@
 }
 
 /* Warning geometry nivel colors */
-/* Department boundary style */
 :root {
-    --nivel-1-color: #cccccc;  /* Light gray - almost transparent */
-    --nivel-2-color: #ffc107;  /* Yellow */
-    --nivel-3-color: #fd7e14;  /* Orange */
-    --nivel-4-color: #dc3545;  /* Red */
-    --nivel-default-color: #999999;  /* Gray */
-
-    --department-border-color: #000000;  /* Black borders for departments */
+    --nivel-1-color: #cccccc;
+    --nivel-2-color: #fbe734;
+    --nivel-3-color: #fd7e14;
+    --nivel-4-color: #dc3545;
+    --nivel-default-color: #999999;
+    --department-border-color: #000000;
+    
+    /* 🆕 Severity badge colors */
+    --severity-verde: #198754;
+    --severity-amarillo: #fbe734;
+    --severity-naranja: #fd7e14;
+    --severity-rojo: #dc3545;
 }
 
 .warning-nivel-1 {
     fill: var(--nivel-1-color);
-    fill-opacity: 0.1;  /* Very transparent for default areas */
+    fill-opacity: 0.1;
     stroke: var(--nivel-1-color);
     stroke-width: 1.5px;
     stroke-opacity: 0.3;
@@ -167,4 +173,46 @@
     stroke-width: 1.5px;
     stroke-opacity: 0.6;
     fill: none;
+}
+
+/* 🆕 Warning Details Container */
+#warning-details-container {
+    animation: fadeIn 0.3s ease-in;
+}
+
+#warning-details-container .card {
+    border: 1px solid #dee2e6;
+}
+
+#warning-details-container .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+#warning-details-container .badge-severity-1 {
+    background-color: var(--severity-verde) !important;
+}
+
+#warning-details-container .badge-severity-2 {
+    background-color: var(--severity-amarillo) !important;
+    color: #000 !important;
+}
+
+#warning-details-container .badge-severity-3 {
+    background-color: var(--severity-naranja) !important;
+}
+
+#warning-details-container .badge-severity-4 {
+    background-color: var(--severity-rojo) !important;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

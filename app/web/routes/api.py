@@ -1,11 +1,15 @@
 """API routes for GeoJSON and geospatial data."""
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request, current_app
+from sqlalchemy import func
 
 from app.database import SessionLocal
 from app.services.geojson_service import GeoJSONService
-from app.storage.models import WarningAlert
+from app.storage.models import WarningAlert, WarningDailyDetail
 from config.settings import settings
+
+from datetime import timedelta
+
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -264,6 +268,97 @@ def get_warning_info(warning_number: str):
     finally:
         db.close()
 
+@api_bp.route('/warnings/<warning_number>/details')
+def get_warning_all_details(warning_number):
+    """
+    Get daily details for all departments of a warning.
+    
+    Returns grouped data by department with days nested.
+    """
+    db = SessionLocal()
+    
+    try:
+        details = db.query(WarningDailyDetail).filter_by(
+            warning_number=warning_number
+        ).order_by(
+            WarningDailyDetail.department,
+            WarningDailyDetail.day_number
+        ).all()
+        
+        if not details:
+            return jsonify({
+                'error': 'No details found for this warning'
+            }), 404
+        
+        # Group by department
+        grouped = {}
+        for detail in details:
+            dept = detail.department
+            if dept not in grouped:
+                grouped[dept] = {
+                    'department': dept,
+                    'senamhi_id': detail.senamhi_id,
+                    'days': []
+                }
+            grouped[dept]['days'].append({
+                'day_number': detail.day_number,
+                'nivel': detail.nivel,
+                'description': detail.description,
+                'affected_provinces': detail.affected_provinces
+            })
+        
+        return jsonify({
+            'warning_number': warning_number,
+            'departments': list(grouped.values())
+        })
+    
+    finally:
+        db.close()
+
+
+@api_bp.route('/warnings/<warning_number>/details/<department>')
+def get_warning_details_by_department(warning_number, department):
+    """Get daily details with calculated dates."""
+    db = SessionLocal()
+    
+    try:
+        details = db.query(WarningDailyDetail).filter_by(
+            warning_number=warning_number,
+            department=department.upper()
+        ).order_by(WarningDailyDetail.day_number).all()
+        
+        if not details:
+            return jsonify({
+                'error': f'No details found for warning {warning_number} in {department}'
+            }), 404
+        
+        # Get warning to calculate dates
+        warning = db.query(WarningAlert).filter_by(
+            warning_number=warning_number
+        ).first()
+        
+        base_date = warning.valid_from if warning else None
+        
+        return jsonify({
+            'warning_number': warning_number,
+            'department': department.upper(),
+            'senamhi_id': details[0].senamhi_id if details else None,
+            'valid_from': warning.valid_from.isoformat() if warning else None,
+            'valid_until': warning.valid_until.isoformat() if warning else None,
+            'days': [
+                {
+                    'day_number': d.day_number,
+                    'date': (base_date + timedelta(days=d.day_number-1)).strftime('%Y-%m-%d') if base_date else None,
+                    'nivel': d.nivel,
+                    'description': d.description,
+                    'affected_provinces': d.affected_provinces
+                }
+                for d in details
+            ]
+        })
+    
+    finally:
+        db.close()
 
 @api_bp.route("/health")
 def health_check():

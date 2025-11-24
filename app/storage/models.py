@@ -1,8 +1,21 @@
 # app/storage/models.py
 from datetime import UTC, date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, Index
+from sqlalchemy import (
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSON
 
 from app.database import Base
 from config.settings import settings
@@ -136,6 +149,51 @@ class WarningAlert(Base):
 
     def __repr__(self) -> str:
         return f"<WarningAlert(id={self.id}, senamhi_id={self.senamhi_id}, number='{self.warning_number}')>"
+
+    # daily_details = relationship('WarningDailyDetail', back_populates='warning', cascade='all, delete-orphan')
+
+
+class WarningDailyDetail(Base):
+    """Daily details for weather warnings by department."""
+    
+    __tablename__ = 'warning_daily_details'
+    
+    id = Column(Integer, primary_key=True)
+    warning_number = Column(String(50), nullable=False)  # SIN ForeignKey
+    senamhi_id = Column(Integer, nullable=False)
+    department = Column(String(100), nullable=False)
+    day_number = Column(Integer, nullable=False)
+    nivel = Column(Integer, nullable=True)
+    description = Column(Text, nullable=True)
+    affected_provinces = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # NO relationship - warning_number is not unique in warnings table
+    
+    __table_args__ = (
+        UniqueConstraint('warning_number', 'department', 'day_number', name='uq_warning_dept_day'),
+        Index('ix_warning_daily_details_warning', 'warning_number'),
+        Index('ix_warning_daily_details_dept', 'department'),
+    )
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return {
+            'id': self.id,
+            'warning_number': self.warning_number,
+            'senamhi_id': self.senamhi_id,
+            'department': self.department,
+            'day_number': self.day_number,
+            'nivel': self.nivel,
+            'description': self.description,
+            'affected_provinces': self.affected_provinces,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+    
+    def __repr__(self):
+        return f"<WarningDailyDetail(warning={self.warning_number}, dept={self.department}, day={self.day_number})>"
 
 
 # Add relationship only if PostGIS is available
