@@ -3,6 +3,7 @@
 PostgreSQL + PostGIS container deployment guide.
 
 ## Quick Start
+
 ```bash
 # Using Makefile (recommended)
 make up
@@ -18,6 +19,7 @@ make down
 ```
 
 ## Configuration
+
 ```bash
 # Create Docker environment
 cp .env.example .env.docker
@@ -27,6 +29,7 @@ nano .env.docker
 ```
 
 **Important variables:**
+
 ```bash
 # PostgreSQL (use 'postgres' as host in Docker)
 DATABASE_URL=postgresql://senamhi_user:senamhi_pass@postgres:5432/senamhi
@@ -38,6 +41,7 @@ WARNING_SCRAPE_INTERVAL=6
 ```
 
 ## Services
+
 ```yaml
 services:
   postgres:           # PostgreSQL + PostGIS
@@ -47,6 +51,7 @@ services:
 ## Common Tasks
 
 ### Using Makefile (Recommended)
+
 ```bash
 # Service management
 make up                  # Start services
@@ -70,6 +75,7 @@ make rebuild             # Rebuild containers
 ```
 
 ### Using Docker Compose Directly
+
 ```bash
 # Start
 docker compose -f docker-compose.postgres.yml up -d
@@ -89,6 +95,7 @@ docker compose -f docker-compose.postgres.yml exec senamhi-tracker python -m app
 ### PostgreSQL
 
 Data stored in `postgres_data` volume
+
 ```bash
 # Backup database
 docker exec senamhi-postgres pg_dump -U senamhi_user senamhi > backup.sql
@@ -104,6 +111,7 @@ make clean
 ## Resource Limits
 
 Configured in `docker-compose.postgres.yml`:
+
 ```yaml
 deploy:
   resources:
@@ -117,6 +125,7 @@ Adjust based on your needs.
 ## Networking
 
 Services communicate on `senamhi-network`:
+
 ```bash
 # Inspect network
 docker network inspect senamhi-tracker_senamhi-network
@@ -125,6 +134,7 @@ docker network inspect senamhi-tracker_senamhi-network
 ## Troubleshooting
 
 **Port conflicts:**
+
 ```yaml
 # Change external port in docker-compose.postgres.yml
 ports:
@@ -132,6 +142,7 @@ ports:
 ```
 
 **Container won't start:**
+
 ```bash
 # Check logs
 make logs
@@ -142,6 +153,7 @@ make rebuild
 ```
 
 **Database connection fails:**
+
 ```bash
 # Check postgres is healthy
 make ps

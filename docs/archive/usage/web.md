@@ -9,15 +9,17 @@ The web dashboard provides an interactive interface for viewing weather forecast
 ## Starting the Web Server
 
 ### Local Development
+
 ```bash
 poetry run senamhi web
 ```
 
-Visit: http://localhost:5001
+Visit: <http://localhost:5001>
 
 ### Docker
 
 **PostgreSQL:**
+
 ```bash
 # Start services
 make up
@@ -25,6 +27,7 @@ make up
 ```
 
 The web interface is not exposed by default in Docker. To access it, modify `docker-compose.postgres.yml`:
+
 ```yaml
 services:
   senamhi-tracker:
@@ -33,12 +36,14 @@ services:
 ```
 
 Then restart:
+
 ```bash
 make restart
 # Or: docker compose -f docker-compose.postgres.yml restart
 ```
 
 ### Configuration
+
 ```bash
 # .env
 WEB_HOST=127.0.0.1    # Localhost only (secure)
@@ -47,6 +52,7 @@ WEB_DEBUG=True        # Enable debug mode
 ```
 
 **Production Settings:**
+
 ```bash
 WEB_HOST=0.0.0.0      # Allow external connections
 WEB_PORT=80           # Standard HTTP port
@@ -60,12 +66,14 @@ WEB_DEBUG=False       # Disable debug
 **URL:** `http://localhost:5001/`
 
 **Features:**
+
 - Department list with quick access
 - Total statistics (locations, forecasts, warnings)
 - Database status indicator
 - Quick navigation to all departments
 
 **Actions:**
+
 - Click department name to view detailed forecasts
 
 ### Department View
@@ -75,6 +83,7 @@ WEB_DEBUG=False       # Disable debug
 Example: `http://localhost:5001/department/LIMA`
 
 **Features:**
+
 - All locations within department
 - Active weather warnings for department
 - Current forecast for each location
@@ -83,6 +92,7 @@ Example: `http://localhost:5001/department/LIMA`
 **Sections:**
 
 #### Active Warnings
+
 - Warning number and title
 - Severity badge (Amarillo/Naranja/Rojo)
 - Status badge (EMITIDO/VIGENTE)
@@ -91,6 +101,7 @@ Example: `http://localhost:5001/department/LIMA`
 - View map button (PostGIS only)
 
 #### Location Forecasts
+
 - Location name
 - 3-day forecast preview
 - Temperature range (min/max)
@@ -105,6 +116,7 @@ Example: `http://localhost:5001/department/LIMA`
 Example: `http://localhost:5001/warning/418`
 
 **Features:**
+
 - Complete warning information
 - All affected departments
 - Full description
@@ -118,6 +130,7 @@ Example: `http://localhost:5001/warning/418`
 **Access:** Click "📊 View Chart" on any location card
 
 **Features:**
+
 - Temperature comparison (SENAMHI vs GFS vs ECMWF)
 - Precipitation comparison
 - Interactive tooltips
@@ -126,11 +139,13 @@ Example: `http://localhost:5001/warning/418`
 - Real-time data from Open-Meteo API
 
 **Chart Controls:**
+
 - Hover over data points for details
 - Click legend to show/hide models
 - Responsive design (works on mobile)
 
 **Models Compared:**
+
 - **SENAMHI**: Official Peru weather service
 - **GFS**: NOAA Global Forecast System
 - **ECMWF**: European Centre for Medium-Range Weather Forecasts
@@ -142,6 +157,7 @@ Example: `http://localhost:5001/warning/418`
 **Access:** Click "🗺️ View Map" on warning cards
 
 **Features:**
+
 - Interactive Leaflet.js map
 - Color-coded warning levels:
   - **Nivel 1** (Gray): Sin fenómeno - very faint
@@ -154,19 +170,22 @@ Example: `http://localhost:5001/warning/418`
 - Click polygons for details
 
 **Map Controls:**
+
 - **Timeline buttons**: Navigate through warning days (shows actual dates: DD MMM)
 - **Active day**: Highlighted button shows current day
 - **Zoom controls**: Standard Leaflet zoom (+/-)
 - **Base layers**: Streets, Satellite, Terrain
 
 **Timeline Features:**
+
 - Shows actual dates (e.g., "19 Nov", "20 Nov")
 - Active warnings: Timeline starts at current day
 - Expired warnings: Timeline starts at day 1
 - Smooth transitions between days
 
 **Example:**
-```
+
+```text
 Warning #418 - Lluvias intensas
 
 Timeline: [19 Nov] [20 Nov] [21 Nov]
@@ -178,6 +197,7 @@ Timeline: [19 Nov] [20 Nov] [21 Nov]
 The web dashboard uses these REST API endpoints:
 
 ### Forecasts
+
 ```bash
 GET /api/forecast/{location_id}
 ```
@@ -185,6 +205,7 @@ GET /api/forecast/{location_id}
 Returns forecast data for charts.
 
 ### Warnings
+
 ```bash
 # Get warning info
 GET /api/warnings/{warning_number}/info
@@ -197,6 +218,7 @@ GET /api/warnings/{warning_number}/geometry?day={day_number}
 ```
 
 ### Departments
+
 ```bash
 # Get department bounds (PostGIS only)
 GET /api/departments/{department_name}/bounds
@@ -209,6 +231,7 @@ GET /api/departments/all/geometry
 ```
 
 **Example API Calls:**
+
 ```bash
 # Get Lima boundaries
 curl http://localhost:5001/api/departments/LIMA/bounds
@@ -225,6 +248,7 @@ curl http://localhost:5001/api/warnings/418/info
 ### Map Styling
 
 Edit `app/web/static/css/style.css`:
+
 ```css
 /* Warning level colors */
 :root {
@@ -249,6 +273,7 @@ Edit `app/web/static/css/style.css`:
 ### Chart Colors
 
 Edit `config/openmeteo.yaml`:
+
 ```yaml
 models:
   - id: gfs_seamless
@@ -267,6 +292,7 @@ models:
 ### Forecast Period
 
 Currently hardcoded to 3 days. To change, edit `app/web/routes/main.py`:
+
 ```python
 # Change this line
 forecast_days = 3  # Change to 5 or 7
@@ -283,6 +309,7 @@ The web dashboard is responsive and works on mobile devices:
 - ✅ Collapsible sections
 
 **Tested on:**
+
 - iOS Safari
 - Android Chrome
 - Desktop browsers (Chrome, Firefox, Safari, Edge)
@@ -292,16 +319,19 @@ The web dashboard is responsive and works on mobile devices:
 ### Optimization Tips
 
 **For large databases:**
+
 1. Enable pagination (not implemented yet)
 2. Filter by date range
 3. Use database indexes (already configured)
 
 **For slow maps:**
+
 1. Reduce polygon complexity (simplified shapefiles)
 2. Limit displayed days
 3. Use CDN for Leaflet.js (already configured)
 
 **For slow charts:**
+
 1. Reduce forecast period (3 days vs 7 days)
 2. Cache Open-Meteo responses
 3. Limit number of models compared
@@ -309,6 +339,7 @@ The web dashboard is responsive and works on mobile devices:
 ### Caching
 
 Currently no caching implemented. For production:
+
 - Add Flask-Caching
 - Cache API responses (5-15 minutes)
 - Cache Open-Meteo responses (1 hour)
@@ -316,6 +347,7 @@ Currently no caching implemented. For production:
 ## Troubleshooting
 
 ### Port 5001 already in use
+
 ```bash
 # Check what's using the port
 lsof -i :5001
@@ -330,12 +362,14 @@ poetry run senamhi web
 ### Maps not showing (PostGIS)
 
 **Check:**
+
 1. PostGIS is enabled: `SELECT PostGIS_version();`
 2. Shapefiles are downloaded: `poetry run senamhi geo list`
 3. Geometries are synced: Check `warning_geometries` table
 4. Browser console for errors: F12 → Console tab
 
 **Fix:**
+
 ```bash
 # Re-download and sync
 poetry run senamhi geo download 418
@@ -348,11 +382,13 @@ poetry run senamhi web
 ### Charts not loading
 
 **Check:**
+
 1. Open-Meteo API is accessible
 2. Location has coordinates in database
 3. Browser console for errors
 
 **Fix:**
+
 ```bash
 # Verify coordinates
 poetry run senamhi list
@@ -364,6 +400,7 @@ curl "https://api.open-meteo.com/v1/forecast?latitude=-12.0464&longitude=-77.042
 ### 404 Not Found
 
 **Common causes:**
+
 1. Department name case-sensitive: Use uppercase (LIMA not Lima)
 2. Location name has special characters: Use exact name from database
 3. Warning number doesn't exist: Check `poetry run senamhi warnings list`
@@ -371,6 +408,7 @@ curl "https://api.open-meteo.com/v1/forecast?latitude=-12.0464&longitude=-77.042
 ### Slow page load
 
 **Optimization:**
+
 ```bash
 # Check database size
 poetry run senamhi status
@@ -389,12 +427,14 @@ VACUUM ANALYZE;
 **⚠️ Important for public deployment:**
 
 1. **Disable debug mode:**
+
 ```bash
    WEB_DEBUG=False
    DEBUG=False
 ```
 
 2. **Use reverse proxy:**
+
 ```nginx
    # nginx config
    location / {
@@ -419,6 +459,7 @@ VACUUM ANALYZE;
 ### CORS Configuration
 
 Currently CORS is enabled for all origins (development). For production:
+
 ```python
 # app/web/__init__.py
 CORS(app, resources={
@@ -433,6 +474,7 @@ CORS(app, resources={
 ### Embedding Maps
 
 You can embed warning maps in external applications:
+
 ```html
 <iframe
   src="http://localhost:5001/warning/418"
@@ -445,6 +487,7 @@ You can embed warning maps in external applications:
 ### Custom Styling
 
 Add custom CSS by creating `app/web/static/css/custom.css`:
+
 ```css
 /* Dark theme example */
 body {
@@ -459,6 +502,7 @@ body {
 ```
 
 Then include in templates:
+
 ```html
 <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
 ```
@@ -467,7 +511,7 @@ Then include in templates:
 
 ### Daily Weather Check
 
-1. Visit homepage: http://localhost:5001
+1. Visit homepage: <http://localhost:5001>
 2. Click your department (e.g., LIMA)
 3. Check active warnings at top
 4. Review forecasts for your locations

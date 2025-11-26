@@ -5,11 +5,13 @@ Common issues and solutions.
 ## Installation Issues
 
 **Poetry not found:**
+
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
 **Dependencies fail to install:**
+
 ```bash
 poetry cache clear pypi --all
 poetry install
@@ -18,6 +20,7 @@ poetry install
 ## Database Issues
 
 **SQLite locked:**
+
 ```bash
 # Stop all running processes
 ps aux | grep senamhi
@@ -27,6 +30,7 @@ pkill -f senamhi
 ```
 
 **PostgreSQL connection failed:**
+
 ```bash
 # Check it's running
 pg_isalive
@@ -39,6 +43,7 @@ lsof -i :5433
 ```
 
 **Migrations fail:**
+
 ```bash
 # Check current version
 poetry run alembic current
@@ -51,6 +56,7 @@ poetry run alembic upgrade head
 ## Scraping Issues
 
 **Network timeout:**
+
 ```bash
 # Increase timeout in .env
 REQUEST_TIMEOUT=60
@@ -58,6 +64,7 @@ SCRAPE_DELAY=3.0
 ```
 
 **No data scraped:**
+
 ```bash
 # Check SENAMHI website is accessible
 curl https://www.senamhi.gob.pe
@@ -69,6 +76,7 @@ tail -f logs/scheduler.log
 ## Web Interface Issues
 
 **Port 5001 in use:**
+
 ```bash
 # Change port in .env
 WEB_PORT=5002
@@ -78,6 +86,7 @@ lsof -ti:5001 | xargs kill -9
 ```
 
 **Maps not showing:**
+
 ```bash
 # Check PostGIS
 psql -d senamhi -c "SELECT PostGIS_version();"
@@ -89,6 +98,7 @@ poetry run senamhi geo sync 418
 ```
 
 **Charts not loading:**
+
 ```bash
 # Verify coordinates
 poetry run senamhi list
@@ -97,6 +107,7 @@ poetry run senamhi list
 ## Docker Issues
 
 **Container won't start:**
+
 ```bash
 # Check logs
 make logs
@@ -107,6 +118,7 @@ make rebuild
 ```
 
 **Database volume issues:**
+
 ```bash
 # Remove volumes (⚠️ deletes data)
 make clean
@@ -115,6 +127,7 @@ make clean
 ## Performance Issues
 
 **Slow scraping:**
+
 ```bash
 # Reduce concurrent operations
 SCRAPE_DELAY=3.0
@@ -125,6 +138,7 @@ DEPARTMENTS=LIMA
 ```
 
 **High memory usage:**
+
 ```bash
 # Check database size
 du -h data/weather.db
@@ -136,18 +150,22 @@ poetry run python scripts/cleanup_old_warnings.py
 ## Common Error Messages
 
 **"PostGIS not available":**
+
 - Using SQLite but trying geospatial features
 - Switch to PostgreSQL or disable geo features
 
 **"Warning not found":**
+
 - Warning number doesn't exist
 - Check: `poetry run senamhi warnings list`
 
 **"No such function: RecoverGeometryColumn":**
+
 - Tests trying to use PostGIS with SQLite
 - Tests are automatically skipped, this is expected
 
 **"Database is locked":**
+
 - Multiple processes accessing SQLite
 - Use PostgreSQL or ensure only one process runs
 

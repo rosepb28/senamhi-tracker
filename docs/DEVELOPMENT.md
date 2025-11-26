@@ -3,6 +3,7 @@
 Guide for contributors and developers.
 
 ## Quick Setup
+
 ```bash
 # Clone and install
 git clone https://github.com/rosepb28/senamhi-tracker.git
@@ -22,6 +23,7 @@ poetry run pytest -v
 ## Development Workflow
 
 ### Code Changes
+
 ```bash
 # Create feature branch
 git checkout -b feat/amazing-feature
@@ -44,6 +46,7 @@ git push origin feat/amazing-feature
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 poetry run pytest -v
@@ -61,6 +64,7 @@ open htmlcov/index.html
 **Note:** Tests use SQLite and skip PostGIS-dependent tests automatically.
 
 ### Code Quality
+
 ```bash
 # Lint and format (combined)
 make check
@@ -75,6 +79,7 @@ poetry run pre-commit run --all-files
 ```
 
 ### Database Migrations
+
 ```bash
 # Create new migration
 poetry run alembic revision --autogenerate -m "add new field"
@@ -93,6 +98,7 @@ poetry run alembic history
 ```
 
 **Helper scripts:**
+
 ```bash
 # Create migration (interactive)
 ./dev_tools/new_migration.sh "add_new_field"
@@ -102,7 +108,8 @@ poetry run alembic history
 ```
 
 ## Project Structure
-```
+
+```text
 app/
 ├── cli/              # Typer CLI commands
 │   ├── main.py
@@ -157,6 +164,7 @@ alembic/             # Database migrations
 ## Adding New Features
 
 ### New CLI Command
+
 ```python
 # app/cli/mycommand.py
 import typer
@@ -174,6 +182,7 @@ app.add_typer(mycommand.app, name="mycommand")
 ```
 
 ### New Scraper
+
 ```python
 # app/scrapers/my_scraper.py
 from bs4 import BeautifulSoup
@@ -192,6 +201,7 @@ class MyScraper:
 ```
 
 ### New API Endpoint
+
 ```python
 # app/web/routes/api.py
 @api_bp.route('/api/myendpoint/<param>', methods=['GET'])
@@ -205,6 +215,7 @@ def get_my_data(param: str):
 ```
 
 ### New Database Model
+
 ```python
 # app/storage/models.py
 from sqlalchemy import Column, Integer, String
@@ -224,6 +235,7 @@ class MyModel(Base):
 ```
 
 Then create migration:
+
 ```bash
 poetry run alembic revision --autogenerate -m "add my_table"
 poetry run alembic upgrade head
@@ -232,6 +244,7 @@ poetry run alembic upgrade head
 ## Testing Guidelines
 
 ### Writing Tests
+
 ```python
 # tests/test_my_feature.py
 import pytest
@@ -254,6 +267,7 @@ def test_with_fixture(sample_data):
 ```
 
 ### Mocking External APIs
+
 ```python
 from unittest.mock import patch, MagicMock
 
@@ -273,6 +287,7 @@ def test_scraper(mock_get):
 ## Debugging
 
 ### Local Development
+
 ```bash
 # Enable debug mode
 echo "DEBUG=True" >> .env
@@ -287,6 +302,7 @@ poetry run senamhi scrape
 ```
 
 ### Docker Debugging
+
 ```bash
 # View logs
 make logs
@@ -305,7 +321,8 @@ docker compose -f docker-compose.postgres.yml exec senamhi-tracker \
 ## Contributing
 
 ### Commit Convention
-```
+
+```text
 feat: Add new feature
 fix: Bug fix
 docs: Documentation changes
@@ -336,6 +353,7 @@ perf: Performance improvements
 - [ ] No breaking changes (or documented)
 
 ## Useful Commands
+
 ```bash
 # Database
 poetry run senamhi status              # Show stats

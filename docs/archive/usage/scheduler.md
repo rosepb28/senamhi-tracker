@@ -7,6 +7,7 @@ Complete guide to configuring and using the automatic scheduler.
 The scheduler runs periodic scraping jobs for forecasts, warnings, and shapefile downloads. It uses the `schedule` library and runs as a foreground process.
 
 ## Quick Start
+
 ```bash
 # Configure
 cat > .env << 'EOF'
@@ -24,6 +25,7 @@ poetry run senamhi daemon start
 ## Configuration
 
 ### Environment Variables
+
 ```bash
 # Enable/disable scheduler
 ENABLE_SCHEDULER=True
@@ -50,16 +52,19 @@ LOG_FILE=logs/scheduler.log
 ### Recommended Intervals
 
 **Forecasts:**
+
 - **Daily (24 hours)**: Standard - SENAMHI updates once daily
 - **Twice daily (12 hours)**: For critical monitoring
 - **Minimum**: 6 hours (avoid excessive scraping)
 
 **Warnings:**
+
 - **Every 6 hours**: Recommended - captures new warnings quickly
 - **Every 3 hours**: For critical situations
 - **Every 12 hours**: Minimum for active monitoring
 
 **Shapefiles:**
+
 - Automatic with warning scrapes
 - Downloads only for new active warnings
 - Skips warnings that already have geometries
@@ -73,6 +78,7 @@ The scheduler runs three types of jobs:
 **Frequency:** `FORECAST_SCRAPE_INTERVAL` hours
 
 **What it does:**
+
 1. Discovers all departments (or uses configured list)
 2. Scrapes forecast data for each department
 3. Saves to database
@@ -80,12 +86,14 @@ The scheduler runs three types of jobs:
 5. Handles errors with retries
 
 **Behavior:**
+
 - **Skips** if data already exists for today (unless `force=True`)
 - **Retries** up to `MAX_RETRIES` times on failure
 - **Logs** all operations to `LOG_FILE`
 
 **Example log:**
-```
+
+```bash
 2025-11-19 06:00:00 | INFO | Starting scheduled forecast scrape job
 2025-11-19 06:00:00 | INFO | Scraping ALL departments
 2025-11-19 06:00:02 | INFO | Scrape attempt 1/3
@@ -98,18 +106,21 @@ The scheduler runs three types of jobs:
 **Frequency:** `WARNING_SCRAPE_INTERVAL` hours
 
 **What it does:**
+
 1. Updates expired warnings to 'vencido' status
 2. Scrapes current warnings from all departments
 3. Saves new warnings or updates existing ones
 4. Records statistics
 
 **Behavior:**
+
 - **Always scrapes all departments** (no filtering)
 - **Updates status** of expired warnings automatically
 - **Tracks duplicates** across departments
 
 **Example log:**
-```
+
+```bash
 2025-11-19 06:00:00 | INFO | Starting scheduled warnings scrape job
 2025-11-19 06:00:00 | INFO | Updated 5 expired warning(s) to 'vencido'
 2025-11-19 06:00:05 | INFO | Warnings scrape completed: 38 found, 3 saved, 2 updated
@@ -120,6 +131,7 @@ The scheduler runs three types of jobs:
 **Frequency:** `WARNING_SCRAPE_INTERVAL` hours (same as warnings)
 
 **What it does:**
+
 1. Finds all active warnings (vigente/emitido)
 2. Groups by warning_number (avoid duplicates)
 3. Checks if geometries already exist
@@ -127,13 +139,15 @@ The scheduler runs three types of jobs:
 5. Parses and syncs geometries to database
 
 **Behavior:**
+
 - **Only runs** with PostGIS enabled
 - **Skips** warnings that already have geometries
 - **Downloads** one ZIP per warning day
 - **Parses** polygons and saves to `warning_geometries` table
 
 **Example log:**
-```
+
+```bash
 2025-11-19 06:00:10 | INFO | Starting scheduled shapefile download job
 2025-11-19 06:00:10 | INFO | Found 3 unique active warning(s)
 2025-11-19 06:00:10 | DEBUG | Warning #418 already has geometries, skipping
@@ -147,12 +161,14 @@ The scheduler runs three types of jobs:
 ## Running the Scheduler
 
 ### Foreground Mode (Development)
+
 ```bash
 poetry run senamhi daemon start
 ```
 
 **Output:**
-```
+
+```bash
 ============================================================
 SENAMHI Tracker Scheduler Started
 ============================================================
@@ -173,6 +189,7 @@ Scheduled jobs:
 ```
 
 **Features:**
+
 - **Ctrl+C** for graceful shutdown
 - **Real-time logs** to console
 - **Immediate execution** if configured
@@ -181,6 +198,7 @@ Scheduled jobs:
 ## Monitoring
 
 ### View Logs
+
 ```bash
 # Follow logs in real-time
 tail -f logs/scheduler.log
@@ -196,6 +214,7 @@ grep "2025-11-19" logs/scheduler.log
 ```
 
 ### Check Scrape History
+
 ```bash
 # View last 10 runs
 poetry run senamhi runs
@@ -211,6 +230,7 @@ poetry run senamhi runs --status success
 ```
 
 ### Database Status
+
 ```bash
 # Check database stats
 poetry run senamhi status
@@ -236,7 +256,8 @@ The scheduler automatically retries failed scrapes:
 6. **Give up** and log error
 
 **Example:**
-```
+
+```bash
 2025-11-19 06:00:00 | INFO | Scrape attempt 1/3
 2025-11-19 06:00:05 | ERROR | Scrape attempt 1 failed: Connection timeout
 2025-11-19 06:00:05 | INFO | Retrying in 60 seconds...
@@ -247,43 +268,51 @@ The scheduler automatically retries failed scrapes:
 ### Common Errors
 
 #### Network timeout
-```
+
+```bash
 ERROR | Scrape attempt 1 failed: Connection timeout
 ```
 
 **Fix:**
+
 - Increase `REQUEST_TIMEOUT` in `.env`
 - Check internet connection
 - Verify SENAMHI website is accessible
 
 #### Database locked
-```
+
+```bash
 ERROR | Database is locked
 ```
 
 **Fix:**
+
 - Stop other processes accessing database
 - Use PostgreSQL instead of SQLite for concurrent access
 
 #### Data already exists
-```
+
+```bash
 INFO | Data already exists for issue date 2025-11-18, skipping
 ```
 
 **Not an error** - scheduler intelligently skips duplicate data
 
 #### GeoServer unavailable
-```
+
+```bash
 WARNING | Day 1: Download failed
 ```
 
 **Fix:**
+
 - Check SENAMHI GeoServer status
 - Retry manually: `poetry run senamhi geo download 418`
 
 ## Performance Tuning
 
 ### Optimize Intervals
+
 ```bash
 # Conservative (respects SENAMHI resources)
 FORECAST_SCRAPE_INTERVAL=24
@@ -299,6 +328,7 @@ WARNING_SCRAPE_INTERVAL=3
 ```
 
 ### Reduce Load
+
 ```bash
 # Scrape specific departments only
 SCRAPE_ALL_DEPARTMENTS=False
@@ -316,11 +346,13 @@ MAX_RETRIES=2
 ### Scheduler not starting
 
 **Check configuration:**
+
 ```bash
 grep ENABLE_SCHEDULER .env
 ```
 
 **Should be:**
+
 ```bash
 ENABLE_SCHEDULER=True
 ```
@@ -328,11 +360,13 @@ ENABLE_SCHEDULER=True
 ### Jobs not running
 
 **Check intervals:**
+
 ```bash
 grep INTERVAL .env
 ```
 
 **View next run times:**
+
 ```bash
 poetry run senamhi daemon start
 # Look for "Scheduled jobs:" section
@@ -341,16 +375,19 @@ poetry run senamhi daemon start
 ### Shapefiles not downloading
 
 **Check PostGIS:**
+
 ```bash
 poetry run python -c "from config.settings import settings; print(f'PostGIS: {settings.supports_postgis}')"
 ```
 
 **Check active warnings:**
+
 ```bash
 poetry run senamhi warnings active
 ```
 
 **Manual download:**
+
 ```bash
 poetry run senamhi geo download 418
 ```
@@ -358,40 +395,21 @@ poetry run senamhi geo download 418
 ### High memory usage
 
 **Check database size:**
+
 ```bash
 du -h data/weather.db
 ```
 
 **Clean old data:**
+
 ```bash
 poetry run python scripts/cleanup_old_warnings.py
 ```
 
 **Reduce concurrent jobs:**
+
 - Don't run manual scrapes while scheduler is active
 - Use PostgreSQL instead of SQLite
-
-## Best Practices
-
-### Development
-- Use short intervals for testing (e.g., 1 hour)
-- Enable `SCHEDULER_START_IMMEDIATELY=True`
-- Monitor logs actively: `tail -f logs/scheduler.log`
-- Use SQLite for simplicity
-
-### Production
-- Use recommended intervals (24h forecasts, 6h warnings)
-- Disable debug mode: `DEBUG=False`
-- Use PostgreSQL for reliability
-- Set up monitoring alerts
-- Use systemd or supervisor for process management
-- Rotate logs regularly
-
-### Monitoring
-- Check logs daily
-- Review scrape history weekly
-- Monitor database size monthly
-- Set up alerts for failed runs
 
 ## Next Steps
 

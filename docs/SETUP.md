@@ -12,6 +12,7 @@ Quick setup guide with Makefile commands.
 ## Installation
 
 ### Local Development (SQLite)
+
 ```bash
 # Clone and install
 git clone https://github.com/rosepb28/senamhi-tracker.git
@@ -31,6 +32,7 @@ poetry run senamhi web  # http://localhost:5001
 ```
 
 ### Docker (PostgreSQL + PostGIS)
+
 ```bash
 # Setup
 cp .env.example .env.docker
@@ -47,6 +49,7 @@ make scrape-warnings
 ```
 
 ### Local with PostgreSQL
+
 ```bash
 # Install PostgreSQL + PostGIS
 # macOS:
@@ -75,6 +78,7 @@ poetry run alembic upgrade head
 ## Makefile Commands
 
 ### Service Management
+
 ```bash
 make up              # Start Docker services
 make down            # Stop services
@@ -85,6 +89,7 @@ make logs-all        # View all logs
 ```
 
 ### Scraping
+
 ```bash
 make scrape              # Scrape forecasts and warnings
 make scrape-warnings     # Scrape warnings only
@@ -93,6 +98,7 @@ make scrape-force        # Force scrape (replace existing)
 ```
 
 ### Database
+
 ```bash
 make migrate             # Run migrations
 make migrate-status      # Show migration status
@@ -101,6 +107,7 @@ make db-status           # Show database stats
 ```
 
 ### Geospatial
+
 ```bash
 make geo-download warning=421    # Download shapefile
 make geo-sync warning=421        # Sync to database
@@ -108,6 +115,7 @@ make geo-list                    # List downloaded files
 ```
 
 ### Development
+
 ```bash
 make shell               # Enter app container
 make build               # Build without cache
@@ -117,6 +125,7 @@ make check               # Run linting and formatting
 ```
 
 ### CLI Commands
+
 ```bash
 make list-locations      # List all locations
 make list-warnings       # List warnings
@@ -124,6 +133,7 @@ make runs                # Show scrape history
 ```
 
 ### Help
+
 ```bash
 make help                # Show all commands
 ```
@@ -133,6 +143,7 @@ make help                # Show all commands
 ### Environment Variables
 
 **Local (`.env`):**
+
 ```bash
 # Database
 DATABASE_URL=sqlite:///./data/weather.db
@@ -153,6 +164,7 @@ WEB_DEBUG=True
 ```
 
 **Docker (`.env.docker`):**
+
 ```bash
 DATABASE_URL=postgresql://senamhi_user:senamhi_pass@postgres:5432/senamhi
 ENABLE_SCHEDULER=True
@@ -164,6 +176,7 @@ See [Configuration Guide](archive/configuration.md) for all options.
 ## Common Workflows
 
 ### Daily Monitoring
+
 ```bash
 # Docker
 make scrape-warnings
@@ -176,6 +189,7 @@ poetry run senamhi web
 ```
 
 ### Geospatial Setup
+
 ```bash
 # Get active warnings
 poetry run senamhi warnings active
@@ -193,6 +207,7 @@ poetry run senamhi web  # Click "View Map"
 ```
 
 ### Development Workflow
+
 ```bash
 # Format and lint
 make check
@@ -210,6 +225,7 @@ tail -f logs/scheduler.log
 ## Verification
 
 ### Check Installation
+
 ```bash
 # Local
 poetry run senamhi status
@@ -221,6 +237,7 @@ make ps
 ```
 
 ### Test Scraping
+
 ```bash
 # Local
 poetry run senamhi scrape --departments LIMA
@@ -231,13 +248,14 @@ make scrape-warnings
 
 ### Access Services
 
-- **Web Dashboard:** http://localhost:5001
+- **Web Dashboard:** <http://localhost:5001>
 - **PostgreSQL:** `localhost:5433` (Docker) or `localhost:5432` (local)
-- **API:** http://localhost:5001/api/health
+- **API:** <http://localhost:5001/api/health>
 
 ## Troubleshooting
 
 **Port conflicts:**
+
 ```bash
 # Change web port
 WEB_PORT=5002
@@ -248,12 +266,14 @@ ports:
 ```
 
 **Docker won't start:**
+
 ```bash
 make logs
 make rebuild
 ```
 
 **Database connection fails:**
+
 ```bash
 # Local
 psql -U senamhi_user -d senamhi

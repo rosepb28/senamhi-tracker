@@ -10,6 +10,7 @@
 **The Problem:** SENAMHI's website scatters weather information across multiple pages - forecasts on one page, warnings requiring clicks through each department, geospatial data needing GIS software.
 
 **The Solution:** SENAMHI Tracker consolidates all meteorological data into a single, searchable database with:
+
 - **Unified access** to forecasts and warnings
 - **Interactive maps** with warning coverage areas
 - **Multi-model comparison** (SENAMHI vs GFS vs ECMWF)
@@ -30,6 +31,7 @@ Perfect for researchers, meteorologists, emergency responders, and weather enthu
 ## 🚀 Quick Start
 
 ### Local Development
+
 ```bash
 # Clone and install
 git clone https://github.com/rosepb28/senamhi-tracker.git
@@ -48,6 +50,7 @@ poetry run senamhi web
 ```
 
 ### Docker (Recommended)
+
 ```bash
 # Start services
 make up
@@ -65,6 +68,7 @@ make down
 See [Setup Guide](docs/SETUP.md) for detailed instructions.
 
 ## 🛠️ Makefile Commands
+
 ```bash
 # Services
 make up              # Start Docker services
@@ -103,6 +107,7 @@ See [Setup Guide](docs/SETUP.md) for complete command reference.
 - **[API Reference](docs/API.md)** - REST API endpoints
 
 **Detailed Guides:**
+
 - [Configuration](docs/archive/configuration.md) - Environment variables
 - [CLI Commands](docs/archive/usage/cli.md) - Complete CLI reference
 - [Web Dashboard](docs/archive/usage/web.md) - Web interface guide
@@ -135,6 +140,7 @@ See [Setup Guide](docs/SETUP.md) for complete command reference.
 **Current Version:** 0.5.2
 
 **Features:**
+
 - ✅ Forecast scraping (all 24 departments)
 - ✅ Warning alerts with daily details
 - ✅ Geospatial visualization (PostGIS)
@@ -145,6 +151,7 @@ See [Setup Guide](docs/SETUP.md) for complete command reference.
 - ✅ Docker deployment
 
 **Roadmap:**
+
 - 📝 Daily model comparison tables
 - 📝 Historical forecast accuracy analysis
 - 📝 Email/SMS notifications
@@ -152,20 +159,24 @@ See [Setup Guide](docs/SETUP.md) for complete command reference.
 ## 📸 Screenshots
 
 ### Dashboard with Warnings
+
 ![Department View](docs/images/dashboard-department.png)
 *Consolidated forecasts and active warnings for each department*
 
 ### Multi-Model Comparison
+
 ![Forecast Chart](docs/images/dashboard-chart.png)
 *Compare SENAMHI with GFS and ECMWF models*
 
 ### Interactive Warning Maps
+
 ![Warning Map](docs/images/dashboard-map.png)
 *Day-by-day visualization with detailed descriptions*
 
 ## 🤝 Contributing
 
 Contributions welcome! See [Development Guide](docs/DEVELOPMENT.md).
+
 ```bash
 # Setup
 git clone https://github.com/rosepb28/senamhi-tracker.git
@@ -191,6 +202,7 @@ MIT License - see [LICENSE](LICENSE) file.
 ## 🙏 Acknowledgments
 
 **Data Sources:**
+
 - [SENAMHI](https://www.senamhi.gob.pe/) - Official Peru weather service
 - [SENAMHI GeoServer](https://idesep.senamhi.gob.pe/geoserver) - Geospatial data
 - [Open-Meteo](https://open-meteo.com/) - Global weather models

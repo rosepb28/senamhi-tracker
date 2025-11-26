@@ -8,12 +8,22 @@ from app.scheduler.jobs import run_forecast_scrape_job, run_warnings_scrape_job
 class TestSchedulerJobs:
     """Test scheduler job execution."""
 
+    @patch("app.services.coordinates_service.populate_coordinates")
+    @patch("app.scheduler.jobs.time.sleep")
+    @patch("app.scheduler.jobs.SessionLocal")
     @patch("app.scheduler.jobs.get_service")
-    def test_forecast_job_success(self, mock_get_service):
+    def test_forecast_job_success(
+        self, mock_get_service, mock_session_local, mock_sleep, mock_populate
+    ):
         """Test successful forecast scraping job."""
+        # Mock database session
+        mock_db = Mock()
+        mock_db.close = Mock()
+        mock_session_local.return_value = mock_db
+
         # Mock service
         mock_service = Mock()
-        mock_service.db = Mock()
+        mock_service.db = mock_db
         mock_service.update_forecasts.return_value = {
             "success": True,
             "issued_at": Mock(strftime=lambda x: "2025-11-18"),
@@ -30,11 +40,19 @@ class TestSchedulerJobs:
             # Execute job
             run_forecast_scrape_job()
 
-            # Verify service was called
-            mock_service.update_forecasts.assert_called_once()
+            # Verify service was called once
+            mock_service.update_forecasts.assert_called_once_with(
+                departments=None, force=False
+            )
+
+            # Verify populate_coordinates was called
+            mock_populate.assert_called_once_with(skip_existing=True)
 
             # Verify run was updated
             mock_crud.update_scrape_run.assert_called_once()
+
+            # Verify no retries
+            mock_sleep.assert_not_called()
 
     @patch("app.scheduler.jobs.get_service")
     def test_warnings_job_success(self, mock_get_service):
@@ -56,12 +74,21 @@ class TestSchedulerJobs:
         # Verify service was called
         mock_service.update_warnings.assert_called_once_with(force=False)
 
+    @patch("app.scheduler.jobs.time.sleep")
+    @patch("app.scheduler.jobs.SessionLocal")
     @patch("app.scheduler.jobs.get_service")
-    def test_forecast_job_skipped(self, mock_get_service):
+    def test_forecast_job_skipped(
+        self, mock_get_service, mock_session_local, mock_sleep
+    ):
         """Test forecast job when data already exists."""
+        # Mock database session
+        mock_db = Mock()
+        mock_db.close = Mock()
+        mock_session_local.return_value = mock_db
+
         # Mock service
         mock_service = Mock()
-        mock_service.db = Mock()
+        mock_service.db = mock_db
         mock_service.update_forecasts.return_value = {
             "success": False,
             "skipped": True,
@@ -83,3 +110,6 @@ class TestSchedulerJobs:
             # Verify run was marked as skipped
             call_args = mock_crud.update_scrape_run.call_args
             assert call_args[1]["status"] == "skipped"
+
+            # Verify no retries
+            mock_sleep.assert_not_called()

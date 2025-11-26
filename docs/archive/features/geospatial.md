@@ -5,6 +5,7 @@ Interactive warning maps with PostGIS and Leaflet.js.
 ## Quick Setup
 
 ### 1. PostgreSQL + PostGIS
+
 ```bash
 # Local
 brew install postgresql@16 postgis
@@ -16,17 +17,20 @@ make up
 ```
 
 ### 2. Configure
+
 ```bash
 # .env
 DATABASE_URL=postgresql://senamhi_user:senamhi_pass@localhost:5433/senamhi
 ```
 
 ### 3. Migrate
+
 ```bash
 poetry run alembic upgrade head
 ```
 
 ### 4. Use
+
 ```bash
 # Download shapefiles
 poetry run senamhi geo download 418
@@ -42,20 +46,24 @@ poetry run senamhi web
 ## Features
 
 ### Interactive Maps
+
 - **Color-coded levels**: Nivel 1-4 (gray, yellow, orange, red)
 - **Day timeline**: Navigate through warning progression
 - **Auto-zoom**: Focus on affected department
 - **Boundaries**: Peru department borders overlay
 
 ### Automatic Downloads
+
 Scheduler downloads shapefiles for new active warnings every 6 hours.
 
 ### Data Sources
+
 - **Warning shapefiles**: SENAMHI GeoServer
 - **Department boundaries**: INEI (included in `data/boundaries/`)
 - **District boundaries**: INEI (included in `data/boundaries/`)
 
 ## CLI Commands
+
 ```bash
 # Download
 poetry run senamhi geo download 418
@@ -72,6 +80,7 @@ poetry run senamhi geo list
 ### Map Colors
 
 Edit `app/web/static/css/style.css`:
+
 ```css
 :root {
     --nivel-2-color: #ffc107;  /* Yellow */
@@ -81,6 +90,7 @@ Edit `app/web/static/css/style.css`:
 ```
 
 ## Migration from SQLite
+
 ```bash
 # 1. Start PostgreSQL
 docker compose -f docker-compose.postgres.yml up -d postgres
@@ -104,6 +114,7 @@ poetry run senamhi geo sync 418
 ## Troubleshooting
 
 **Maps not showing:**
+
 ```bash
 # Check PostGIS
 psql -d senamhi -c "SELECT PostGIS_version();"
@@ -113,7 +124,8 @@ poetry run senamhi geo sync 418
 ```
 
 **Download fails:**
-- Check SENAMHI GeoServer: https://idesep.senamhi.gob.pe/geoserver
+
+- Check SENAMHI GeoServer: <https://idesep.senamhi.gob.pe/geoserver>
 - Verify warning exists on SENAMHI website
 
 See [Configuration Guide](../configuration.md) for more details.

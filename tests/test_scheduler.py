@@ -101,13 +101,23 @@ def test_get_scrape_runs_filtered(db_session):
     assert failed_runs[0].error_message == "Test error"
 
 
+@patch("app.services.coordinates_service.populate_coordinates")
+@patch("app.scheduler.jobs.time.sleep")
+@patch("app.scheduler.jobs.SessionLocal")
 @patch("app.scheduler.jobs.get_service")
 @patch("app.scheduler.jobs.crud")
-def test_run_forecast_scrape_job_success(mock_crud, mock_get_service):
+def test_run_forecast_scrape_job_success(
+    mock_crud, mock_get_service, mock_session_local, mock_sleep, mock_populate
+):
     """Test successful scrape job execution with WeatherService."""
+    # Mock database session
+    mock_db = Mock()
+    mock_db.close = Mock()  # Mock close method
+    mock_session_local.return_value = mock_db
+
     # Mock service
     mock_service = Mock()
-    mock_service.db = Mock()
+    mock_service.db = mock_db
     mock_service.update_forecasts.return_value = {
         "success": True,
         "issued_at": Mock(strftime=lambda x: "2025-11-18"),
@@ -123,10 +133,16 @@ def test_run_forecast_scrape_job_success(mock_crud, mock_get_service):
     # Execute job
     run_forecast_scrape_job()
 
-    # Verify service was called
-    mock_service.update_forecasts.assert_called_once()
+    # Verify service was called once (no retries)
+    mock_service.update_forecasts.assert_called_once_with(departments=None, force=False)
+
+    # Verify populate_coordinates was called
+    mock_populate.assert_called_once_with(skip_existing=True)
 
     # Verify run was updated with success
     mock_crud.update_scrape_run.assert_called_once()
     call_args = mock_crud.update_scrape_run.call_args
     assert call_args[1]["status"] == "success"
+
+    # Verify sleep was not called (no retries needed)
+    mock_sleep.assert_not_called()

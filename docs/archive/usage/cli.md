@@ -5,12 +5,14 @@ Complete command-line interface reference for SENAMHI Tracker.
 ## Overview
 
 SENAMHI Tracker provides a rich CLI built with Typer. All commands are accessed through the `senamhi` command.
+
 ```bash
 poetry run senamhi --help
 ```
 
 ## Command Structure
-```
+
+```bash
 senamhi [COMMAND] [SUBCOMMAND] [OPTIONS]
 ```
 
@@ -21,6 +23,7 @@ senamhi [COMMAND] [SUBCOMMAND] [OPTIONS]
 Main scraping command with subcommands for forecasts and warnings.
 
 #### Scrape Everything (Default)
+
 ```bash
 # Scrape both forecasts and warnings
 poetry run senamhi scrape
@@ -31,6 +34,7 @@ poetry run senamhi scrape warnings
 ```
 
 #### Scrape Forecasts
+
 ```bash
 # Scrape configured departments (from .env)
 poetry run senamhi scrape forecasts
@@ -49,11 +53,13 @@ poetry run senamhi scrape forecasts --all --force
 ```
 
 **Options:**
+
 - `--departments TEXT`: Comma-separated department list
 - `--all`: Scrape all departments (overrides --departments)
 - `--force`: Replace existing data for today
 
 **Examples:**
+
 ```bash
 # Scrape Lima only
 poetry run senamhi scrape forecasts --departments LIMA
@@ -66,6 +72,7 @@ poetry run senamhi scrape forecasts --all --force
 ```
 
 #### Scrape Warnings
+
 ```bash
 # Scrape warnings for all departments
 poetry run senamhi scrape warnings
@@ -75,9 +82,11 @@ poetry run senamhi scrape warnings --force
 ```
 
 **Options:**
+
 - `--force`: Replace existing warnings for today
 
 **Notes:**
+
 - Warnings are always scraped for all departments
 - Updates status of expired warnings automatically
 - With PostGIS: triggers automatic shapefile downloads
@@ -87,6 +96,7 @@ poetry run senamhi scrape warnings --force
 ### `senamhi list`
 
 List all locations in the database.
+
 ```bash
 # List all locations
 poetry run senamhi list
@@ -99,10 +109,12 @@ poetry run senamhi list
 ```
 
 **Options:**
+
 - `--department TEXT`: Filter by department name
 
 **Output:**
-```
+
+```bash
 ┌────────────┬──────────────────┬───────────┐
 │ Department │ Location         │ Forecasts │
 ├────────────┼──────────────────┼───────────┤
@@ -115,6 +127,7 @@ poetry run senamhi list
 ### `senamhi show`
 
 Show forecast details for a specific location.
+
 ```bash
 # Show forecast for location
 poetry run senamhi show "LIMA ESTE"
@@ -124,10 +137,12 @@ poetry run senamhi show CANTA --department LIMA
 ```
 
 **Options:**
+
 - `--department TEXT`: Department name (helps with duplicate location names)
 
 **Output:**
-```
+
+```bash
 Forecast for LIMA ESTE (LIMA)
 Issued: 2025-11-18 06:00:00
 
@@ -146,6 +161,7 @@ Day 2 (2025-11-20):
 ### `senamhi history`
 
 View forecast history for a location on specific date.
+
 ```bash
 # View forecast history
 poetry run senamhi history CANTA 2025-11-13
@@ -155,14 +171,17 @@ poetry run senamhi history CANTA 2025-11-13 --department LIMA
 ```
 
 **Arguments:**
+
 - `LOCATION`: Location name
 - `DATE`: Date in YYYY-MM-DD format
 
 **Options:**
+
 - `--department TEXT`: Department name
 
 **Output:**
-```
+
+```bash
 Forecast History for CANTA on 2025-11-13
 
 Issued: 2025-11-13 06:00:00
@@ -179,12 +198,14 @@ Issued: 2025-11-12 06:00:00
 ### `senamhi status`
 
 Show database statistics.
+
 ```bash
 poetry run senamhi status
 ```
 
 **Output:**
-```
+
+```bash
 Database Statistics
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -202,6 +223,7 @@ Location: postgresql://...@localhost:5433/senamhi
 ### `senamhi warnings list`
 
 List all warnings.
+
 ```bash
 # List last 10 warnings
 poetry run senamhi warnings list
@@ -214,10 +236,12 @@ poetry run senamhi warnings list --limit 50
 ```
 
 **Options:**
+
 - `--limit INTEGER`: Number of warnings to show (default: 10)
 
 **Output:**
-```
+
+```bash
 ┌────────┬────────────┬──────────┬──────────────┬────────────┬──────────┐
 │ Number │ Department │ Hazard   │ Severity     │ Status     │ Valid    │
 ├────────┼────────────┼──────────┼──────────────┼────────────┼──────────┤
@@ -230,12 +254,14 @@ poetry run senamhi warnings list --limit 50
 ### `senamhi warnings active`
 
 List only active warnings (VIGENTE + EMITIDO).
+
 ```bash
 poetry run senamhi warnings active
 ```
 
 **Output:**
-```
+
+```bash
 Active Warnings (12)
 
 ┌────────┬────────────┬──────────┬──────────────┬────────────┐
@@ -250,6 +276,7 @@ Active Warnings (12)
 ### `senamhi warnings show`
 
 Show detailed information for a specific warning.
+
 ```bash
 # Show warning details
 poetry run senamhi warnings show 418
@@ -259,13 +286,16 @@ poetry run senamhi warnings show 418 --department ANCASH
 ```
 
 **Arguments:**
+
 - `WARNING_NUMBER`: Warning number (e.g., 418)
 
 **Options:**
+
 - `--department TEXT`: Filter by department
 
 **Output:**
-```
+
+```bash
 Warning #418 - Lluvias de moderada a fuerte intensidad
 
 Department: ANCASH
@@ -292,6 +322,7 @@ ANCASH, HUANUCO, PASCO, LIMA, JUNIN, ...
 ### `senamhi geo download`
 
 Download shapefiles for a warning from SENAMHI GeoServer.
+
 ```bash
 # Download shapefile for warning
 poetry run senamhi geo download 418
@@ -303,9 +334,11 @@ poetry run senamhi geo download 418
 ```
 
 **Arguments:**
+
 - `WARNING_NUMBER`: Warning number
 
 **Notes:**
+
 - Requires PostGIS (PostgreSQL)
 - Downloads one ZIP per day of warning
 - Skips already downloaded files
@@ -314,6 +347,7 @@ poetry run senamhi geo download 418
 ### `senamhi geo sync`
 
 Parse shapefiles and save geometries to database.
+
 ```bash
 # Sync geometries for warning
 poetry run senamhi geo sync 418
@@ -326,21 +360,25 @@ poetry run senamhi geo sync 418
 ```
 
 **Arguments:**
+
 - `WARNING_NUMBER`: Warning number
 
 **Prerequisites:**
+
 - Shapefiles must be downloaded first
 - Requires PostGIS enabled
 
 ### `senamhi geo list`
 
 List all downloaded shapefile ZIPs.
+
 ```bash
 poetry run senamhi geo list
 ```
 
 **Output:**
-```
+
+```bash
 Downloaded Shapefiles (9 files)
 
 warning_418_day_1_2025.zip  (1.2 MB)
@@ -351,6 +389,7 @@ warning_417_day_1_2025.zip  (0.8 MB)
 ```
 
 ### Complete Geospatial Workflow
+
 ```bash
 # 1. Check active warnings
 poetry run senamhi warnings active
@@ -372,18 +411,21 @@ poetry run senamhi web
 ### `senamhi daemon start`
 
 Start the scheduler in foreground mode.
+
 ```bash
 poetry run senamhi daemon start
 ```
 
 **Notes:**
+
 - Runs in foreground (not as background daemon)
 - Press Ctrl+C to stop
 - Respects `ENABLE_SCHEDULER` in `.env`
 - Logs to console and `logs/scheduler.log`
 
 **Output:**
-```
+
+```bash
 ============================================================
 SENAMHI Tracker Scheduler Started
 ============================================================
@@ -399,6 +441,7 @@ Press Ctrl+C to stop
 ### `senamhi daemon status`
 
 Check scheduler status (not implemented yet).
+
 ```bash
 poetry run senamhi daemon status
 ```
@@ -406,6 +449,7 @@ poetry run senamhi daemon status
 ### `senamhi runs`
 
 View scrape run history.
+
 ```bash
 # List last 10 runs
 poetry run senamhi runs
@@ -420,11 +464,13 @@ poetry run senamhi runs --status running
 ```
 
 **Options:**
+
 - `--limit INTEGER`: Number of runs to show (default: 10)
 - `--status TEXT`: Filter by status (success/failed/running/skipped)
 
 **Output:**
-```
+
+```bash
 ┌────┬─────────────────────┬─────────┬───────────┬───────────┬─────────┐
 │ ID │ Started             │ Status  │ Locations │ Forecasts │ Runtime │
 ├────┼─────────────────────┼─────────┼───────────┼───────────┼─────────┤
@@ -439,16 +485,19 @@ poetry run senamhi runs --status running
 ### `senamhi web`
 
 Start the Flask web server.
+
 ```bash
 poetry run senamhi web
 ```
 
 **Default settings:**
+
 - Host: `127.0.0.1` (localhost only)
 - Port: `5001`
 - Debug: Enabled (from `.env`)
 
 **Configuration:**
+
 ```bash
 # .env
 WEB_HOST=0.0.0.0  # Allow external connections
@@ -457,21 +506,24 @@ WEB_DEBUG=False   # Disable debug mode
 ```
 
 **Access:**
-- Homepage: http://localhost:5001
-- Department: http://localhost:5001/department/LIMA
-- API: http://localhost:5001/api/warnings/418/geometry
+
+- Homepage: <http://localhost:5001>
+- Department: <http://localhost:5001/department/LIMA>
+- API: <http://localhost:5001/api/warnings/418/geometry>
 
 ## Utility Commands
 
 ### `senamhi departments`
 
 List all available departments.
+
 ```bash
 poetry run senamhi departments
 ```
 
 **Output:**
-```
+
+```bash
 Available Departments (24)
 
 AMAZONAS, ANCASH, APURIMAC, AREQUIPA, AYACUCHO,
@@ -484,6 +536,7 @@ SAN MARTIN, TACNA, TUMBES, UCAYALI
 ## Common Workflows
 
 ### Daily Monitoring
+
 ```bash
 # Morning: Check for new warnings
 poetry run senamhi scrape warnings
@@ -497,6 +550,7 @@ poetry run senamhi web
 ```
 
 ### Weekly Review
+
 ```bash
 # Check database stats
 poetry run senamhi status
@@ -509,6 +563,7 @@ poetry run senamhi runs --status failed
 ```
 
 ### Geospatial Update
+
 ```bash
 # Get active warnings
 poetry run senamhi warnings active
@@ -525,6 +580,7 @@ poetry run senamhi web
 ```
 
 ### Data Export
+
 ```bash
 # Export forecast data (manual query)
 poetry run python -c "
@@ -548,6 +604,7 @@ with open('forecasts.csv', 'w') as f:
 ### Using Aliases
 
 Add to your `~/.bashrc` or `~/.zshrc`:
+
 ```bash
 alias senamhi='poetry run senamhi'
 alias senamhi-web='poetry run senamhi web'
@@ -555,12 +612,14 @@ alias senamhi-scrape='poetry run senamhi scrape --all'
 ```
 
 Then use:
+
 ```bash
 senamhi warnings active
 senamhi-scrape
 ```
 
 ### Piping Output
+
 ```bash
 # Count active warnings
 poetry run senamhi warnings active | grep -c vigente
@@ -570,6 +629,7 @@ poetry run senamhi warnings list --limit 100 > warnings.txt
 ```
 
 ### Scheduling with Cron
+
 ```bash
 # Edit crontab
 crontab -e
@@ -582,6 +642,7 @@ crontab -e
 ```
 
 ### Quick Status Check
+
 ```bash
 # One-liner to check everything
 poetry run senamhi status && \
@@ -592,6 +653,7 @@ poetry run senamhi runs --limit 5
 ## Troubleshooting
 
 ### Command not found
+
 ```bash
 # Ensure Poetry is installed
 poetry --version
@@ -602,6 +664,7 @@ senamhi --help
 ```
 
 ### Permission denied
+
 ```bash
 # Check file permissions
 ls -la data/
@@ -612,6 +675,7 @@ chmod -R 755 logs/
 ```
 
 ### Database locked
+
 ```bash
 # Check for running processes
 ps aux | grep senamhi

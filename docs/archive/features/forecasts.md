@@ -5,6 +5,7 @@ Multi-model weather forecast comparison with Open-Meteo.
 ## Overview
 
 Compare SENAMHI forecasts with global weather models:
+
 - **SENAMHI**: Official Peru weather service
 - **GFS**: NOAA Global Forecast System
 - **ECMWF**: European Centre forecasts
@@ -14,6 +15,7 @@ Compare SENAMHI forecasts with global weather models:
 ### 1. Add Coordinates
 
 Edit `config/coordinates.yaml`:
+
 ```yaml
 LIMA:
   LIMA ESTE: [-12.0464, -77.0428]
@@ -21,6 +23,7 @@ LIMA:
 ```
 
 ### 2. View Charts
+
 ```bash
 poetry run senamhi web
 # Click "📊 View Chart" on any location
@@ -31,6 +34,7 @@ poetry run senamhi web
 ### Add Models
 
 Edit `config/openmeteo.yaml`:
+
 ```yaml
 models:
   - id: gfs_seamless
@@ -47,6 +51,7 @@ models:
 ```
 
 ### Customize Variables
+
 ```yaml
 variables:
   - api_name: temperature_2m
@@ -68,6 +73,7 @@ variables:
 ## Troubleshooting
 
 **Charts not loading:**
+
 ```bash
 # Check coordinates
 poetry run senamhi list

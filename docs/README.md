@@ -5,6 +5,7 @@ Complete documentation for Peru weather monitoring system.
 ## 🚀 Quick Start
 
 **Local Development:**
+
 ```bash
 git clone https://github.com/rosepb28/senamhi-tracker.git
 cd senamhi-tracker
@@ -15,6 +16,7 @@ poetry run senamhi web
 ```
 
 **Docker (PostgreSQL + PostGIS):**
+
 ```bash
 make up              # Start services
 make scrape          # Scrape data
@@ -27,13 +29,16 @@ See [Setup Guide](SETUP.md) for detailed instructions.
 ## 📖 Documentation
 
 ### Getting Started
+
 - **[Setup Guide](SETUP.md)** - Installation and Makefile commands
 - **[API Reference](API.md)** - REST API endpoints
 
 ### Development
+
 - **[Development Guide](DEVELOPMENT.md)** - Contributing and testing
 
 ### Detailed Guides
+
 - **[Configuration](archive/configuration.md)** - Environment variables
 - **[Installation](archive/installation.md)** - Detailed setup options
 - **[CLI Commands](archive/usage/cli.md)** - Complete command reference
@@ -43,6 +48,7 @@ See [Setup Guide](SETUP.md) for detailed instructions.
 - **[Troubleshooting](archive/troubleshooting.md)** - Common issues
 
 ## 🛠️ Makefile Commands
+
 ```bash
 # Services
 make up              # Start Docker services
@@ -69,6 +75,7 @@ See [Setup Guide](SETUP.md) for complete command list.
 ## 🎯 Common Workflows
 
 **Daily monitoring:**
+
 ```bash
 make scrape-warnings
 poetry run senamhi warnings active
@@ -76,12 +83,14 @@ poetry run senamhi web
 ```
 
 **Geospatial setup:**
+
 ```bash
 poetry run senamhi geo download 421
 poetry run senamhi geo sync 421
 ```
 
 **Development:**
+
 ```bash
 make check                    # Format and lint
 poetry run pytest -v          # Run tests
@@ -89,7 +98,8 @@ poetry run senamhi web        # Start dashboard
 ```
 
 ## 📊 Project Structure
-```
+
+```text
 senamhi-tracker/
 ├── app/                 # Application code
 │   ├── cli/            # CLI commands
