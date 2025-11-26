@@ -149,9 +149,9 @@ def run_warnings_scrape_job() -> None:
                 f"Warnings scrape completed: {result['found']} found, "
                 f"{result['saved']} saved, {result['updated']} updated"
             )
-            
+
             # Log details statistics (already scraped by service)
-            if result.get('details_saved') or result.get('details_updated'):
+            if result.get("details_saved") or result.get("details_updated"):
                 logger.info(
                     f"Warning details: {result['details_saved']} saved, "
                     f"{result['details_updated']} updated"

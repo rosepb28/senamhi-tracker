@@ -69,24 +69,24 @@ function initMap() {
  */
 async function loadWarningDetails(warningNumber, department) {
     const cacheKey = `${warningNumber}-${department}`;
-    
+
     if (warningDetailsCache[cacheKey]) {
         console.log(`✓ Using cached details for ${cacheKey}`);
         return warningDetailsCache[cacheKey];
     }
-    
+
     try {
         const response = await fetch(`/api/warnings/${warningNumber}/details/${department}`);
-        
+
         if (!response.ok) {
             console.error(`Failed to fetch details: ${response.status}`);
             return null;
         }
-        
+
         const data = await response.json();
         warningDetailsCache[cacheKey] = data;
         console.log(`✓ Cached details for ${cacheKey}`);
-        
+
         return data;
     } catch (error) {
         console.error('Error loading warning details:', error);
@@ -99,22 +99,22 @@ async function loadWarningDetails(warningNumber, department) {
  */
 function displayWarningDetails(details, dayNumber) {
     const container = document.getElementById('warning-details-container');
-    
+
     if (!container) return;
-    
+
     if (!details) {
         container.innerHTML = '';
         return;
     }
-    
+
     // Find the day's details
     const dayDetails = details.days.find(d => d.day_number === dayNumber);
-    
+
     if (!dayDetails) {
         container.innerHTML = '<p class="text-muted">No details available for this day.</p>';
         return;
     }
-    
+
     // Severity names for badge
     const severityNames = {
         1: 'VERDE',
@@ -122,9 +122,9 @@ function displayWarningDetails(details, dayNumber) {
         3: 'NARANJA',
         4: 'ROJO'
     };
-    
+
     const severityName = severityNames[dayDetails.nivel] || 'N/A';
-    
+
     container.innerHTML = `
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -132,12 +132,12 @@ function displayWarningDetails(details, dayNumber) {
             </div>
             <div class="card-body">
                 <p class="mb-3">${dayDetails.description}</p>
-                
+
                 ${dayDetails.affected_provinces && dayDetails.affected_provinces.length > 0 ? `
                     <div class="mt-3">
                         <strong class="d-block mb-2">Affected Provinces (${dayDetails.affected_provinces.length}):</strong>
                         <div class="d-flex flex-wrap gap-1">
-                            ${dayDetails.affected_provinces.map(p => 
+                            ${dayDetails.affected_provinces.map(p =>
                                 `<span class="badge bg-secondary">${p}</span>`
                             ).join('')}
                         </div>
@@ -213,16 +213,16 @@ async function loadWarningMap(warningNumber) {
         // Load warning details
         const departmentMatch = window.location.pathname.match(/\/department\/([^\/]+)/);
         const departmentName = departmentMatch ? departmentMatch[1] : null;
-        
+
         if (departmentName) {
             currentWarningDetails = await loadWarningDetails(warningNumber, departmentName);
             if (currentWarningDetails) {
                 displayWarningDetails(currentWarningDetails, currentDay);
-                
+
                 // Update modal title with warning title
                 const warningTitle = allGeojsonData.features[0]?.properties?.title || '';
                 if (warningTitle) {
-                    document.getElementById('map-modal-title').textContent = 
+                    document.getElementById('map-modal-title').textContent =
                         `Warning #${warningNumber} - ${warningTitle}`;
                 }
             }

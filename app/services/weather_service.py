@@ -150,92 +150,95 @@ class WeatherService:
                 saved_count += 1
 
         # Scrape details for ALL warnings (not just new ones)
-        details_stats = {'saved': 0, 'updated': 0}
-        
+        details_stats = {"saved": 0, "updated": 0}
+
         # Get unique warning numbers from scraped warnings (with senamhi_id)
         scraped_warning_numbers = set()
         for warning in warnings:
             if warning.senamhi_id:
                 scraped_warning_numbers.add(warning.warning_number)
-        
+
         if scraped_warning_numbers:
-            logger.info(f"Scraping details for {len(scraped_warning_numbers)} warning(s)")
-            
+            logger.info(
+                f"Scraping details for {len(scraped_warning_numbers)} warning(s)"
+            )
+
             for warning_number in scraped_warning_numbers:
                 # Get all departments for this warning
-                warning_records = self.db.query(WarningAlert).filter(
-                    WarningAlert.warning_number == warning_number
-                ).all()
-                
+                warning_records = (
+                    self.db.query(WarningAlert)
+                    .filter(WarningAlert.warning_number == warning_number)
+                    .all()
+                )
+
                 if not warning_records:
                     continue
-                
+
                 senamhi_id = warning_records[0].senamhi_id
                 departments = list(set(w.department for w in warning_records))
-                
+
                 try:
                     result = self.save_warning_details(
-                        warning_number,
-                        senamhi_id,
-                        departments
+                        warning_number, senamhi_id, departments
                     )
-                    details_stats['saved'] += result['saved']
-                    details_stats['updated'] += result['updated']
+                    details_stats["saved"] += result["saved"]
+                    details_stats["updated"] += result["updated"]
                 except Exception as e:
                     logger.error(
                         f"Error saving details for warning #{warning_number}: {e}"
                     )
-        
+
         logger.info(
             f"Warning details: {details_stats['saved']} saved, "
             f"{details_stats['updated']} updated"
         )
-        
+
         return {
             "success": True,
             "found": len(warnings),
             "saved": saved_count,
             "updated": updated_count,
-            "details_saved": details_stats['saved'],
-            "details_updated": details_stats['updated']
+            "details_saved": details_stats["saved"],
+            "details_updated": details_stats["updated"],
         }
 
     def save_warning_details(
-        self,
-        warning_number: str,
-        senamhi_id: int,
-        departments: list[str]
+        self, warning_number: str, senamhi_id: int, departments: list[str]
     ) -> dict:
         """
         Scrape and save daily details for a warning.
-        
+
         Args:
             warning_number: Warning number (e.g., '420')
             senamhi_id: SENAMHI internal ID
             departments: List of affected departments
-        
+
         Returns:
             Dict with statistics
         """
         scraper = WarningDetailsScraper()
-        
+
         saved_count = 0
         updated_count = 0
-        
+
         for department in departments:
             details_list = scraper.scrape_warning_details(senamhi_id, department)
-            
+
             for detail_data in details_list:
                 # Add warning_number
-                detail_data['warning_number'] = warning_number
-                
+                detail_data["warning_number"] = warning_number
+
                 # Check if exists
-                existing = self.db.query(WarningDailyDetail).filter_by(
-                    warning_number=warning_number,
-                    department=department,
-                    day_number=detail_data['day_number']
-                ).first()
-                
+                existing = (
+                    self.db.query(WarningDailyDetail)
+                    .filter_by(
+                        warning_number=warning_number,
+                        department=department,
+                        day_number=detail_data["day_number"],
+                    )
+                    .first()
+                )
+
                 if existing:
                     # Update
                     for key, value in detail_data.items():
@@ -246,21 +249,21 @@ class WeatherService:
                     new_detail = WarningDailyDetail(**detail_data)
                     self.db.add(new_detail)
                     saved_count += 1
-        
+
         self.db.commit()
-        
+
         logger.info(
             f"Warning details for #{warning_number}: "
             f"{saved_count} saved, {updated_count} updated"
         )
-        
+
         return {
-            'warning_number': warning_number,
-            'saved': saved_count,
-            'updated': updated_count,
-            'total': saved_count + updated_count
+            "warning_number": warning_number,
+            "saved": saved_count,
+            "updated": updated_count,
+            "total": saved_count + updated_count,
         }
-        
+
     def update_all(
         self, departments: list[str] | None = None, force: bool = False
     ) -> dict:

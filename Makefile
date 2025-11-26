@@ -126,6 +126,21 @@ geo-sync:
 geo-list:
 	$(COMPOSE) exec senamhi-tracker python -m app.main geo list
 
+# ==================== Code Quality ====================
+
+# Format and lint code
+lint:
+	poetry run ruff check . --fix
+	poetry run ruff format .
+
+# Run pre-commit on all files
+pre-commit-all:
+	poetry run pre-commit run --all-files
+
+# Run both (without recursion)
+check: lint pre-commit-all
+	@echo "✓ All checks passed!"
+
 # ==================== Help ====================
 
 help:
@@ -171,3 +186,9 @@ help:
 	@echo ""
 	@echo "Web:"
 	@echo "  make web                 - Start web dashboard (local)"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  make lint                - Format and lint code"
+	@echo "  make pre-commit-all      - Run pre-commit on all files"
+	@echo "  make check               - Run all code quality checks"
+	@echo ""============================================="

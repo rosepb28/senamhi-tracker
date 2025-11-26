@@ -17,17 +17,14 @@ Visit: http://localhost:5001
 
 ### Docker
 
-**SQLite:**
-```bash
-docker compose up -d
-```
-
 **PostgreSQL:**
 ```bash
-docker compose -f docker-compose.postgres.yml up -d
+# Start services
+make up
+# Or: docker compose -f docker-compose.postgres.yml up -d
 ```
 
-The web interface is not exposed by default in Docker. To access it, modify `docker-compose.yml`:
+The web interface is not exposed by default in Docker. To access it, modify `docker-compose.postgres.yml`:
 ```yaml
 services:
   senamhi-tracker:
@@ -37,7 +34,8 @@ services:
 
 Then restart:
 ```bash
-docker compose restart
+make restart
+# Or: docker compose -f docker-compose.postgres.yml restart
 ```
 
 ### Configuration

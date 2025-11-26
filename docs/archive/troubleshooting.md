@@ -99,18 +99,17 @@ poetry run senamhi list
 **Container won't start:**
 ```bash
 # Check logs
-docker logs senamhi-tracker-postgres
+make logs
+# Or: docker logs senamhi-tracker-postgres
 
 # Rebuild
-docker compose down
-docker compose up -d --build --force-recreate
+make rebuild
 ```
 
 **Database volume issues:**
 ```bash
 # Remove volumes (⚠️ deletes data)
-docker compose down -v
-docker compose up -d
+make clean
 ```
 
 ## Performance Issues

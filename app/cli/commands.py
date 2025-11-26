@@ -919,9 +919,7 @@ def geo_status():
             console.print(
                 "[yellow]💡 Tip: Use PostgreSQL to enable PostGIS features[/yellow]"
             )
-            console.print(
-                "[dim]   docker compose -f docker-compose.postgres.yml up -d[/dim]"
-            )
+            console.print("[dim]   make up[/dim]")
             console.print()
 
     finally:

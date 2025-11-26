@@ -12,7 +12,7 @@ psql -U postgres -c "CREATE DATABASE senamhi;"
 psql -U postgres -d senamhi -c "CREATE EXTENSION postgis;"
 
 # Docker
-docker compose -f docker-compose.postgres.yml up -d
+make up
 ```
 
 ### 2. Configure
