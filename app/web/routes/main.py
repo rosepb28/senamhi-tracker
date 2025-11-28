@@ -5,6 +5,8 @@ from app.services.openmeteo import OpenMeteoClient
 from app.storage import crud
 from config.settings import settings
 
+from loguru import logger
+
 bp = Blueprint("main", __name__)
 
 
@@ -96,7 +98,7 @@ def department(name):
                         latitude=location.latitude, longitude=location.longitude
                     )
                 except Exception as e:
-                    print(
+                    logger.warning(
                         f"Error fetching Open Meteo data for {location.location}: {e}"
                     )
 

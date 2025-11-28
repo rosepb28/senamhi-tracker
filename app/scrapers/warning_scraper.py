@@ -3,12 +3,11 @@
 from datetime import datetime
 
 import requests
-from rich.console import Console
 
 from config.settings import settings
 from app.models.warning import Warning, WarningSeverity, WarningStatus
 
-console = Console()
+from loguru import logger
 
 
 class WarningScraper:
@@ -115,7 +114,7 @@ class WarningScraper:
             )
 
         except Exception as e:
-            console.print(f"[yellow]Failed to parse warning: {e}[/yellow]")
+            logger.error(f"Failed to parse warning: {e}")
             return None
 
     def scrape_warnings_for_department(self, department: str) -> list[Warning]:
@@ -123,7 +122,7 @@ class WarningScraper:
         dept_upper = department.upper()
 
         if dept_upper not in self.DEPARTMENT_IDS:
-            console.print(f"[yellow]Unknown department: {department}[/yellow]")
+            logger.debug(f"Unknown department: {department}")
             return []
 
         dept_id = self.DEPARTMENT_IDS[dept_upper]
@@ -148,7 +147,7 @@ class WarningScraper:
             return warnings
 
         except Exception as e:
-            console.print(f"[red]Error scraping {department}: {e}[/red]")
+            logger.error(f"Error scraping {department}: {e}")
             return []
 
     def scrape_warnings(self, departments: list[str] | None = None) -> list[Warning]:
@@ -162,7 +161,7 @@ class WarningScraper:
         seen_combinations = set()
 
         for department in departments:
-            console.print(f"[dim]Scraping warnings for {department}...[/dim]")
+            logger.debug(f"Scraping warnings for {department}...")
 
             dept_warnings = self.scrape_warnings_for_department(department)
 

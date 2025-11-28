@@ -4,12 +4,11 @@ import zipfile
 from pathlib import Path
 
 import geopandas as gpd
-from rich.console import Console
 from shapely.geometry import MultiPolygon, Polygon
 
 from config.settings import settings
 
-console = Console()
+from loguru import logger
 
 
 class ShapefileParser:
@@ -30,9 +29,7 @@ class ShapefileParser:
             List of dicts with 'geometry' and 'nivel', or None if parsing failed
         """
         if not settings.supports_postgis:
-            console.print(
-                "[yellow]PostGIS not available, cannot parse geometries[/yellow]"
-            )
+            logger.warning("PostGIS not available, cannot parse geometries")
             return None
 
         try:
@@ -40,7 +37,7 @@ class ShapefileParser:
             gdf = gpd.read_file(f"zip://{zip_path}")
 
             if gdf.empty:
-                console.print(f"[yellow]Empty shapefile: {zip_path.name}[/yellow]")
+                logger.warning(f"Empty shapefile: {zip_path.name}")
                 return None
 
             # Convert to EPSG:4326 if needed (do it once for entire dataframe)
@@ -76,19 +73,15 @@ class ShapefileParser:
                 polygons.append({"geometry": geom, "nivel": nivel})
 
             if not polygons:
-                console.print(
-                    f"[yellow]No valid geometries found in {zip_path.name}[/yellow]"
-                )
+                logger.warning(f"No valid geometries found in {zip_path.name}")
                 return None
 
-            console.print(
-                f"[green]✓ Parsed {len(polygons)} polygon(s) from {zip_path.name}[/green]"
-            )
+            logger.info(f"✓ Parsed {len(polygons)} polygon(s) from {zip_path.name}")
 
             return polygons
 
         except Exception as e:
-            console.print(f"[red]Error parsing {zip_path.name}: {e}[/red]")
+            logger.error(f"Error parsing {zip_path.name}: {e}")
             return None
 
     def extract_shapefile_info(self, zip_path: Path) -> dict:
@@ -115,7 +108,7 @@ class ShapefileParser:
                 }
 
         except Exception as e:
-            console.print(f"[red]Error reading {zip_path.name}: {e}[/red]")
+            logger.error(f"Error reading {zip_path.name}: {e}")
             return {"error": str(e)}
 
     def validate_shapefile_zip(self, zip_path: Path) -> bool:
@@ -150,12 +143,10 @@ class ShapefileParser:
                     if not has_dbf:
                         missing.append(".dbf")
 
-                    console.print(
-                        f"[yellow]Invalid shapefile (missing: {', '.join(missing)})[/yellow]"
-                    )
+                    logger.warning(f"Invalid shapefile (missing: {', '.join(missing)})")
 
                 return is_valid
 
         except Exception as e:
-            console.print(f"[red]Error validating {zip_path.name}: {e}[/red]")
+            logger.error(f"Error validating {zip_path.name}: {e}")
             return False

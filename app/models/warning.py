@@ -1,26 +1,10 @@
 """Pydantic models for weather warnings."""
 
 from datetime import datetime
-from enum import Enum
 
 from pydantic import BaseModel, Field
 
-
-class WarningSeverity(str, Enum):
-    """Warning severity levels."""
-
-    GREEN = "verde"
-    YELLOW = "amarillo"
-    ORANGE = "naranja"
-    RED = "rojo"
-
-
-class WarningStatus(str, Enum):
-    """Warning status."""
-
-    EMITIDO = "emitido"
-    VIGENTE = "vigente"
-    VENCIDO = "vencido"
+from app.models.enums import WarningSeverity, WarningStatus
 
 
 class Warning(BaseModel):

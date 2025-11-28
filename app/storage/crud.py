@@ -11,6 +11,8 @@ from app.storage.models import ScrapeRun
 from app.storage.models import WarningAlert
 from app.models.warning import Warning
 
+from app.models.enums import WarningStatus
+
 
 def get_or_create_location(
     db: Session, location: str, department: str, full_name: str
@@ -85,25 +87,13 @@ def get_location_by_name(db: Session, location: str) -> Location | None:
 
 
 def get_latest_forecasts(db: Session, location_id: int | None = None) -> list[Forecast]:
-    """Get latest forecasts for a location or all locations."""
-    subquery = (
-        db.query(
-            Forecast.location_id,
-            Forecast.forecast_date,
-            func.max(Forecast.scraped_at).label("max_scraped"),
-        )
-        .group_by(Forecast.location_id, Forecast.forecast_date)
-        .subquery()
-    )
+    """Get latest forecasts for a location or all locations based on most recent issued_at."""
+    latest_issued = get_latest_issued_date(db)
 
-    query = db.query(Forecast).join(
-        subquery,
-        and_(
-            Forecast.location_id == subquery.c.location_id,
-            Forecast.forecast_date == subquery.c.forecast_date,
-            Forecast.scraped_at == subquery.c.max_scraped,
-        ),
-    )
+    if not latest_issued:
+        return []
+
+    query = db.query(Forecast).filter(Forecast.issued_at == latest_issued)
 
     if location_id:
         query = query.filter(Forecast.location_id == location_id)
@@ -300,7 +290,9 @@ def get_active_warnings(
     now = datetime.now()
 
     query = db.query(WarningAlert).filter(
-        WarningAlert.status.in_(["emitido", "vigente"]),
+        WarningAlert.status.in_(
+            [WarningStatus.EMITIDO.value, WarningStatus.VIGENTE.value]
+        ),
         WarningAlert.valid_until >= now,
     )
 
@@ -311,7 +303,7 @@ def get_active_warnings(
 
     def sort_key(w):
         # VIGENTE = 0, EMITIDO = 1 (VIGENTE first)
-        status_priority = 0 if w.status == "vigente" else 1
+        status_priority = 0 if w.status == WarningStatus.VIGENTE.value else 1
         # Time difference from now (absolute value, closest = smallest)
         time_diff = abs((w.valid_from - now).total_seconds())
         return (status_priority, time_diff)
@@ -331,7 +323,11 @@ def get_warnings(
 
     if active_only:
         # Filter by status field (not dates)
-        query = query.filter(WarningAlert.status.in_(["emitido", "vigente"]))
+        query = query.filter(
+            WarningAlert.status.in_(
+                [WarningStatus.EMITIDO.value, WarningStatus.VIGENTE.value]
+            )
+        )
 
     if severity:
         query = query.filter(WarningAlert.severity == severity)

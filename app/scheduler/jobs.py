@@ -9,6 +9,8 @@ from app.scheduler.logger import setup_logger
 from app.services.weather_service import WeatherService
 from app.storage import crud
 
+from app.models.enums import WarningStatus
+
 logger = setup_logger()
 
 
@@ -197,7 +199,11 @@ def run_shapefile_download_job() -> None:
         # Get active warnings (vigente or emitido)
         active_warnings = (
             db.query(WarningAlert)
-            .filter(WarningAlert.status.in_(["vigente", "emitido"]))
+            .filter(
+                WarningAlert.status.in_(
+                    [WarningStatus.VIGENTE.value, WarningStatus.EMITIDO.value]
+                )
+            )
             .all()
         )
 

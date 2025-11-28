@@ -8,6 +8,7 @@ from app.storage.models import WarningAlert, WarningDailyDetail
 from config.settings import settings
 
 from datetime import timedelta
+from loguru import logger
 
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -58,7 +59,9 @@ def get_warning_geometry(warning_number: str):
 
         # Add logging
         feature_count = len(geojson.get("features", []))
-        print(f"API: Warning {warning_number} - Returning {feature_count} features")
+        logger.debug(
+            f"API: Warning {warning_number} - Returning {feature_count} features"
+        )
 
         return jsonify(geojson)
 

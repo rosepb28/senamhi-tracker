@@ -5,6 +5,8 @@ import yaml
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import secrets
+
 
 class OpenMeteoModel(dict):
     """Open Meteo model configuration."""
@@ -26,6 +28,13 @@ class Settings(BaseSettings):
 
     app_name: str = "SENAMHI Tracker"
     app_version: str = "0.1.0"
+
+    secret_key: str = Field(
+        default_factory=lambda: secrets.token_hex(32),
+        description="Flask secret key for sessions",
+    )
+
+    cors_origins: str = "*"
 
     # SENAMHI URLs
     senamhi_base_url: str = "https://www.senamhi.gob.pe"
@@ -160,6 +169,12 @@ class Settings(BaseSettings):
 
         # Otherwise use database_url (SQLite by default)
         return self.database_url
+
+    def get_cors_origins(self) -> list[str] | str:
+        """Parse CORS origins from comma-separated string."""
+        if self.cors_origins == "*":
+            return "*"
+        return [origin.strip() for origin in self.cors_origins.split(",")]
 
 
 settings = Settings()

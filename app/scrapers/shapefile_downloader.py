@@ -5,12 +5,11 @@ from pathlib import Path
 import zipfile
 
 import requests
-from rich.console import Console
 
 from app.storage.models import WarningAlert
 from config.settings import settings
 
-console = Console()
+from loguru import logger
 
 
 class ShapefileDownloader:
@@ -96,11 +95,11 @@ class ShapefileDownloader:
 
         # Skip if already downloaded
         if filepath.exists():
-            console.print(f"  [dim]Already exists: {filename}[/dim]")
+            logger.debug(f"  Already exists: {filename}")
             return filepath
 
         try:
-            console.print(f"  [cyan]Downloading day {day}...[/cyan]")
+            logger.debug(f"  Downloading day {day}...")
 
             response = requests.get(url, timeout=self.timeout, stream=True)
             response.raise_for_status()
@@ -108,9 +107,7 @@ class ShapefileDownloader:
             # Check if response is actually a ZIP file
             content_type = response.headers.get("Content-Type", "")
             if "zip" not in content_type.lower():
-                console.print(
-                    f"  [yellow]Warning: Unexpected content type: {content_type}[/yellow]"
-                )
+                logger.warning(f"  Unexpected content type: {content_type}")
 
             # Save file
             with open(filepath, "wb") as f:
@@ -119,15 +116,15 @@ class ShapefileDownloader:
 
             # Verify it's a valid ZIP
             if not zipfile.is_zipfile(filepath):
-                console.print("  [red]Downloaded file is not a valid ZIP[/red]")
+                logger.warning("  Downloaded file is not a valid ZIP")
                 filepath.unlink()
                 return None
 
-            console.print(f"  [green]✓ Downloaded: {filename}[/green]")
+            logger.info(f"  ✓ Downloaded: {filename}")
             return filepath
 
         except requests.exceptions.RequestException as e:
-            console.print(f"  [red]Download failed: {e}[/red]")
+            logger.error(f"  Download failed: {e}")
             if filepath.exists():
                 filepath.unlink()
             return None
@@ -143,19 +140,17 @@ class ShapefileDownloader:
             List of paths to downloaded ZIP files
         """
         if not warning.senamhi_id:
-            console.print(
-                f"[yellow]Warning #{warning.warning_number} has no senamhi_id, cannot download shapefiles[/yellow]"
+            logger.warning(
+                f"Warning #{warning.warning_number} has no senamhi_id, cannot download shapefiles"
             )
             return []
 
         year = warning.valid_from.year
         num_days = self.calculate_warning_days(warning)
 
-        console.print(
-            f"\n[bold]Downloading shapefiles for Warning #{warning.warning_number}[/bold]"
-        )
-        console.print(
-            f"[dim]Duration: {num_days} days ({warning.valid_from.date()} to {warning.valid_until.date()})[/dim]"
+        logger.debug(f"Downloading shapefiles for Warning #{warning.warning_number}")
+        logger.debug(
+            f"Duration: {num_days} days ({warning.valid_from.date()} to {warning.valid_until.date()})"
         )
 
         downloaded = []
@@ -164,9 +159,7 @@ class ShapefileDownloader:
             if filepath:
                 downloaded.append(filepath)
 
-        console.print(
-            f"\n[green]Downloaded {len(downloaded)}/{num_days} shapefiles[/green]\n"
-        )
+        logger.info(f"Downloaded {len(downloaded)}/{num_days} shapefiles")
         return downloaded
 
     def list_downloaded_shapefiles(self) -> list[Path]:
@@ -192,6 +185,6 @@ class ShapefileDownloader:
                 removed += 1
 
         if removed > 0:
-            console.print(f"[green]Removed {removed} old shapefile(s)[/green]")
+            logger.info(f"Removed {removed} old shapefile(s)")
 
         return removed

@@ -13,6 +13,13 @@ from app.services.weather_service import WeatherService
 from app.services.coordinates_service import populate_coordinates
 from app.storage.models import WarningAlert
 
+from app.models.enums import (
+    SEVERITY_COLORS,
+    STATUS_COLORS,
+    WarningStatus,
+    WarningSeverity,
+)
+
 app = typer.Typer()
 scrape_app = typer.Typer(help="Scrape weather data from SENAMHI")
 warnings_app = typer.Typer(help="Manage weather warnings")
@@ -219,7 +226,9 @@ def show(
         scraped_at = forecasts[0].scraped_at
 
         console.print(f"[dim]Issued: {issued_at.strftime('%Y-%m-%d')}[/dim]")
-        console.print(f"[dim]Scraped: {scraped_at.strftime('%Y-%m-%d %H:%M')}[/dim]\n")
+        console.print(
+            f"[dim]Scraped: {scraped_at.strftime('%Y-%m-%d %H:%M')}UTC[/dim]\n"
+        )
 
         table = Table(show_header=True, header_style="bold magenta")
         table.add_column("Date", style="cyan")
@@ -405,25 +414,15 @@ def warnings_list(
         table.add_column("Valid From")
         table.add_column("Valid Until")
 
-        severity_colors = {
-            "verde": "green",
-            "amarillo": "#FFD700",
-            "naranja": "#FF8C00",
-            "rojo": "red",
-        }
-        status_colors = {
-            "emitido": "blue",
-            "vigente": "red",
-            "vencido": "white",
-        }
-
         for warning in unique_warnings:
-            severity_color = severity_colors.get(warning.severity, "white")
+            severity_color = SEVERITY_COLORS.get(
+                WarningSeverity(warning.severity), "white"
+            )
             severity_text = (
                 f"[{severity_color}]{warning.severity.upper()}[/{severity_color}]"
             )
 
-            status_color = status_colors.get(warning.status, "white")
+            status_color = STATUS_COLORS.get(WarningStatus(warning.status), "white")
             status_text = f"[{status_color}]{warning.status.upper()}[/{status_color}]"
 
             title_text = warning.title
@@ -473,20 +472,13 @@ def warnings_show(
 
         console.print(f"\n[bold cyan]Warning #{warning.warning_number}[/bold cyan]")
 
-        status_colors = {"emitido": "blue", "vigente": "red", "vencido": "white"}
-        status_color = status_colors.get(warning.status, "white")
+        status_color = STATUS_COLORS.get(WarningStatus(warning.status), "white")
         console.print(
             f"Status: [{status_color}]{warning.status.upper()}[/{status_color}]"
         )
         console.print()
 
-        severity_colors = {
-            "verde": "green",
-            "amarillo": "#FFD700",
-            "naranja": "#FF8C00",
-            "rojo": "red",
-        }
-        severity_color = severity_colors.get(warning.severity, "white")
+        severity_color = SEVERITY_COLORS.get(WarningSeverity(warning.severity), "white")
 
         console.print(f"[bold]Title:[/bold] {warning.title}")
         console.print(

@@ -89,7 +89,7 @@ class ForecastScheduler:
         # Calculate next run times
         jobs = schedule.get_jobs()
         if jobs:
-            logger.info("\nScheduled jobs:")
+            logger.info("Scheduled jobs:")
             for job in jobs:
                 logger.info(
                     f"  - {job.job_func.__name__}: next run at {job.next_run.strftime('%Y-%m-%d %H:%M:%S')}"

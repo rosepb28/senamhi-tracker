@@ -2,12 +2,11 @@
 
 from pathlib import Path
 import yaml
-from rich.console import Console
 
 from app.database import SessionLocal
 from app.storage.models import Location
 
-console = Console()
+from loguru import logger
 
 
 def populate_coordinates(skip_existing: bool = True) -> dict:
@@ -23,7 +22,7 @@ def populate_coordinates(skip_existing: bool = True) -> dict:
     coords_file = Path("config/coordinates.yaml")
 
     if not coords_file.exists():
-        console.print(f"[yellow]Coordinates file not found: {coords_file}[/yellow]")
+        logger.warning(f"Coordinates file not found: {coords_file}")
         return {"updated": 0, "skipped": 0, "not_found": 0}
 
     # Load coordinates
@@ -56,12 +55,10 @@ def populate_coordinates(skip_existing: bool = True) -> dict:
         db.commit()
 
         if stats["updated"] > 0:
-            console.print(
-                f"[green]✓ Updated {stats['updated']} location(s) with coordinates[/green]"
-            )
+            logger.info(f"✓ Updated {stats['updated']} location(s) with coordinates")
         if stats["not_found"] > 0:
-            console.print(
-                f"[yellow]⚠ {stats['not_found']} location(s) not found in coordinates.yaml[/yellow]"
+            logger.warning(
+                f"⚠ {stats['not_found']} location(s) not found in coordinates.yaml"
             )
 
         return stats

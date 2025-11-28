@@ -9,9 +9,7 @@ from config.settings import settings
 from app.models.forecast import DailyForecast, LocationForecast
 from app.scrapers.utils import parse_date, parse_temperature, parse_issued_date
 
-from rich.console import Console
-
-console = Console()
+from loguru import logger
 
 
 class ForecastScraper:
@@ -106,7 +104,7 @@ class ForecastScraper:
                 forecast = self._parse_forecast_row(row)
                 daily_forecasts.append(forecast)
             except Exception as e:
-                print(f"Warning: Failed to parse forecast row: {e}")
+                logger.warning(f"Failed to parse forecast row: {e}")
                 continue
 
         return LocationForecast(
@@ -170,7 +168,7 @@ class ForecastScraper:
                 time.sleep(0.1)
 
             except Exception as e:
-                print(f"Error parsing {full_name}: {e}")
+                logger.error(f"Error parsing {full_name}: {e}")
                 continue
 
         return forecasts
@@ -187,7 +185,7 @@ class ForecastScraper:
                 continue
 
         # Fallback to current datetime if not found
-        print("Warning: Issued date not found, using current datetime")
+        logger.warning("Issued date not found, using current datetime")
         return datetime.now()
 
     def get_all_departments(self) -> list[str]:
@@ -222,10 +220,10 @@ class ForecastScraper:
 
     def scrape_all_departments(self) -> list[LocationForecast]:
         """Scrape forecasts for all available departments."""
-        console.print("[yellow]Discovering all departments...[/yellow]")
+        logger.debug("Discovering all departments...")
         departments = self.get_all_departments()
-        console.print(
-            f"[green]Found {len(departments)} departments:[/green] {', '.join(departments)}\n"
+        logger.debug(
+            f"Found {len(departments)} departments: {', '.join(departments)}\n"
         )
 
         return self.scrape_forecasts(departments=departments)
