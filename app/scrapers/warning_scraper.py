@@ -87,11 +87,12 @@ class WarningScraper:
 
             severity = self._map_severity(aviso_data["nivel"], aviso_data["colorNivel"])
 
-            # Determine status based on dates
+            # Determine status based on datetime (not just date)
             now = datetime.now()
+
             if valid_from <= now <= valid_until:
                 status = WarningStatus.VIGENTE
-            elif valid_from > now:
+            elif now < valid_from:
                 status = WarningStatus.EMITIDO
             else:
                 status = WarningStatus.VENCIDO

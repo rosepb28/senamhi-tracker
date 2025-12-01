@@ -127,6 +127,7 @@ class ForecastScraper:
             departments = settings.get_departments_list()
 
         departments_upper = [d.upper() for d in departments]
+        failed_locations = []
 
         soup = self._make_request()
 
@@ -167,9 +168,20 @@ class ForecastScraper:
 
                 time.sleep(0.1)
 
-            except Exception as e:
-                logger.error(f"Error parsing {full_name}: {e}")
+            except Exception:
+                # logger.error(f"Error parsing {full_name}: {e}")
+                failed_locations.append(full_name)
                 continue
+
+        if failed_locations:
+            logger.warning(f"{len(failed_locations)} location(s) without forecast data")
+            for loc in failed_locations[:5]:
+                logger.warning(f" - {loc}")
+
+            if len(failed_locations) > 5:
+                logger.warning(f"  ... and {len(failed_locations) - 5} more")
+
+            logger.warning(f"Check SENAMHI source: {self.base_url}")
 
         return forecasts
 

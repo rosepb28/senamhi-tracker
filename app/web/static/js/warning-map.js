@@ -1,28 +1,18 @@
 // app/web/static/js/warning-map.js
-/**
- * Warning Map for Bootstrap Modal
- */
-
 let warningMap = null;
 let currentWarningNumber = null;
 let currentDay = 1;
 let totalDays = 0;
 let allGeojsonData = null;
-let departmentBoundariesAdded = false;
+let hasGeometry = false;
 
-// Cache geometries by warning number
+// Cache
 let geometryCache = {};
-
-// Cache department boundaries
-let allDepartmentsGeojson = null;
-let targetDepartmentGeometry = null;
-
-// Precalculated timeline dates
-let timelineDates = [];
-
-// 🆕 WARNING DETAILS CACHE
 let warningDetailsCache = {};
 let currentWarningDetails = null;
+let allDepartmentsGeojson = null;
+let targetDepartmentGeometry = null;
+let departmentBoundariesAdded = false;
 
 /**
  * Initialize map when modal is shown
@@ -32,9 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (mapModal) {
         mapModal.addEventListener('shown.bs.modal', () => {
-            if (!warningMap) {
+            if (hasGeometry && !warningMap) {
                 initMap();
-            } else {
+            } else if (hasGeometry && warningMap) {
                 warningMap.invalidateSize();
             }
         });
@@ -51,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 function initMap() {
     const mapElement = document.getElementById('warning-map');
-
     if (!mapElement || warningMap) return;
 
     warningMap = L.map('warning-map').setView([-9.19, -75.0152], 6);
@@ -65,28 +54,21 @@ function initMap() {
 }
 
 /**
- * 🆕 Load warning details with caching
+ * Load warning details with caching
  */
 async function loadWarningDetails(warningNumber, department) {
     const cacheKey = `${warningNumber}-${department}`;
 
     if (warningDetailsCache[cacheKey]) {
-        console.log(`✓ Using cached details for ${cacheKey}`);
         return warningDetailsCache[cacheKey];
     }
 
     try {
         const response = await fetch(`/api/warnings/${warningNumber}/details/${department}`);
-
-        if (!response.ok) {
-            console.error(`Failed to fetch details: ${response.status}`);
-            return null;
-        }
+        if (!response.ok) return null;
 
         const data = await response.json();
         warningDetailsCache[cacheKey] = data;
-        console.log(`✓ Cached details for ${cacheKey}`);
-
         return data;
     } catch (error) {
         console.error('Error loading warning details:', error);
@@ -98,37 +80,37 @@ async function loadWarningDetails(warningNumber, department) {
  * Display warning details in modal
  */
 function displayWarningDetails(details, dayNumber) {
-    const container = document.getElementById('warning-details-container');
+    console.log('=== DEBUG ===');
+    console.log('Details:', JSON.stringify(details, null, 2));
+    console.log('Looking for day_number:', dayNumber);
+    console.log('Available days:', details?.days?.map(d => d.day_number));
 
-    if (!container) return;
+    const container = document.getElementById('warning-details-container');
+    if (!container) {
+        console.log('ERROR: Container not found!');
+        return;
+    }
 
     if (!details) {
+        console.log('ERROR: No details provided');
         container.innerHTML = '';
         return;
     }
 
-    // Find the day's details
     const dayDetails = details.days.find(d => d.day_number === dayNumber);
+    console.log('Found dayDetails:', dayDetails);
 
     if (!dayDetails) {
+        console.log('ERROR: No details for day', dayNumber);
         container.innerHTML = '<p class="text-muted">No details available for this day.</p>';
         return;
     }
 
-    // Severity names for badge
-    const severityNames = {
-        1: 'VERDE',
-        2: 'AMARILLO',
-        3: 'NARANJA',
-        4: 'ROJO'
-    };
-
-    const severityName = severityNames[dayDetails.nivel] || 'N/A';
-
     container.innerHTML = `
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <strong> Warning Details</strong>
+            <div class="card-header">
+                <strong>Day ${dayNumber} Details</strong>
+                ${dayDetails.date ? `<span class="text-muted ms-2">(${dayDetails.date})</span>` : ''}
             </div>
             <div class="card-body">
                 <p class="mb-3">${dayDetails.description}</p>
@@ -149,90 +131,87 @@ function displayWarningDetails(details, dayNumber) {
 }
 
 /**
- * Load warning geometry with caching
+ * Main function to load warning (with or without geometry)
  */
-async function loadWarningMap(warningNumber) {
+async function loadWarningMap(warningNumber, hasGeo) {
     currentWarningNumber = warningNumber;
+    hasGeometry = hasGeo;
     departmentBoundariesAdded = false;
-    targetDepartmentGeometry = null;
 
-    document.getElementById('map-modal-title').textContent = `Warning #${warningNumber}`;
-    showStatus('Loading geometries...', 'info');
+    // Load warning info for title
+    const infoResponse = await fetch(`/api/warnings/${warningNumber}/info`);
+    if (infoResponse.ok) {
+        const info = await infoResponse.json();
+        document.getElementById('map-modal-title').textContent =
+            `Warning #${warningNumber} - ${info.title}`;
+    } else {
+        document.getElementById('map-modal-title').textContent = `Warning #${warningNumber}`;
+    }
 
-    try {
-        // Check cache first
-        if (geometryCache[warningNumber]) {
-            console.log(`✓ Using cached geometry for warning #${warningNumber}`);
-            allGeojsonData = geometryCache[warningNumber];
-        } else {
-            const response = await fetch(`/api/warnings/${currentWarningNumber}/geometry`);
+    const mapWrapper = document.getElementById('map-container-wrapper');
+    const footerText = document.getElementById('modal-footer-text');
 
-            if (!response.ok) {
-                const error = await response.json();
+    // Get department from URL
+    const departmentMatch = window.location.pathname.match(/\/department\/([^\/]+)/);
+    const departmentName = departmentMatch ? departmentMatch[1] : null;
 
-                if (response.status === 404) {
-                    showStatus('No geometries available for this warning.', 'warning');
-                    return;
-                }
+    if (!departmentName) {
+        showStatus('Department not found', 'danger');
+        return;
+    }
 
-                throw new Error(error.message || 'Error loading geometry');
-            }
+    // Load warning details first
+    currentWarningDetails = await loadWarningDetails(warningNumber, departmentName);
 
-            const geojson = await response.json();
-            allGeojsonData = geojson;
-            geometryCache[warningNumber] = geojson;
-            console.log(`✓ Cached geometry for warning #${warningNumber}`);
-        }
+    if (!currentWarningDetails) {
+        showStatus('Failed to load warning details', 'danger');
+        return;
+    }
 
-        if (allGeojsonData.type === 'FeatureCollection') {
-            const uniqueDays = new Set(
-                allGeojsonData.features.map(f => f.properties.day_number)
-            );
-            totalDays = uniqueDays.size;
+    totalDays = currentWarningDetails.days.length;
 
-            const firstFeature = allGeojsonData.features[0];
-            const validFrom = new Date(firstFeature.properties.valid_from);
-            const validUntil = new Date(firstFeature.properties.valid_until);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+    // Use the first available day_number (not always 1!)
+    if (currentWarningDetails.days.length > 0) {
+        currentDay = currentWarningDetails.days[0].day_number;
+    } else {
+        currentDay = 1;
+    }
 
-            if (today >= validFrom && today <= validUntil) {
-                const daysDiff = Math.floor((today - validFrom) / (1000 * 60 * 60 * 24));
-                currentDay = Math.max(1, Math.min(daysDiff + 1, totalDays));
+    // Create timeline
+    createTimelineFromDetails(currentWarningDetails);
+
+    // Handle geometry
+    if (hasGeometry) {
+        mapWrapper.style.display = 'block';
+        footerText.textContent = 'Geometries from SENAMHI GeoServer';
+
+        showStatus('Loading geometries...', 'info');
+
+        try {
+            if (geometryCache[warningNumber]) {
+                allGeojsonData = geometryCache[warningNumber];
             } else {
-                currentDay = 1;
+                const response = await fetch(`/api/warnings/${warningNumber}/geometry`);
+                if (!response.ok) throw new Error('Failed to load geometry');
+
+                allGeojsonData = await response.json();
+                geometryCache[warningNumber] = allGeojsonData;
             }
-        } else {
-            totalDays = 1;
-            currentDay = 1;
+
+            initMap();
+            await showDay(currentDay);
+            hideStatus();
+
+        } catch (error) {
+            console.error('Error loading geometry:', error);
+            showStatus('Error loading map data', 'danger');
         }
-
-        createTimeline(totalDays, allGeojsonData.features);
-        await showDay(currentDay);
-
-        // Load warning details
-        const departmentMatch = window.location.pathname.match(/\/department\/([^\/]+)/);
-        const departmentName = departmentMatch ? departmentMatch[1] : null;
-
-        if (departmentName) {
-            currentWarningDetails = await loadWarningDetails(warningNumber, departmentName);
-            if (currentWarningDetails) {
-                displayWarningDetails(currentWarningDetails, currentDay);
-
-                // Update modal title with warning title
-                const warningTitle = allGeojsonData.features[0]?.properties?.title || '';
-                if (warningTitle) {
-                    document.getElementById('map-modal-title').textContent =
-                        `Warning #${warningNumber} - ${warningTitle}`;
-                }
-            }
-        }
-
+    } else {
+        // No geometry - hide map, show only details
+        mapWrapper.style.display = 'none';
+        footerText.textContent = 'Warning details from SENAMHI API';
+        displayWarningDetails(currentWarningDetails, currentDay);
         hideStatus();
-
-    } catch (error) {
-        console.error('Error loading geometry:', error);
-        showStatus(error.message, 'danger');
     }
 }
 
@@ -240,69 +219,118 @@ async function loadWarningMap(warningNumber) {
  * Show specific day
  */
 async function showDay(day) {
-    if (day < 1 || day > totalDays) return;
+    if (!currentWarningDetails) return;
+
+    // Validate that this day exists in the details
+    const dayExists = currentWarningDetails.days.some(d => d.day_number === day);
+    if (!dayExists) return;
 
     currentDay = day;
     updateTimelineButtons();
 
-    try {
-        const dayFeatures = allGeojsonData.features.filter(
-            f => f.properties.day_number === day
-        );
+    if (hasGeometry && allGeojsonData) {
+        try {
+            const dayFeatures = allGeojsonData.features.filter(
+                f => f.properties.day_number === day
+            );
 
-        const dayGeojson = {
-            type: "FeatureCollection",
-            features: dayFeatures
-        };
+            const dayGeojson = {
+                type: "FeatureCollection",
+                features: dayFeatures
+            };
 
-        // Clear only warning GeoJSON layers
-        warningMap.eachLayer((layer) => {
-            if (layer instanceof L.GeoJSON && !layer.options.isDepartmentLayer) {
-                warningMap.removeLayer(layer);
+            warningMap.eachLayer((layer) => {
+                if (layer instanceof L.GeoJSON && !layer.options.isDepartmentLayer) {
+                    warningMap.removeLayer(layer);
+                }
+            });
+
+            const geoJsonLayer = L.geoJSON(dayGeojson, {
+                style: getFeatureStyle,
+                onEachFeature: bindPopup
+            }).addTo(warningMap);
+
+            if (day === 1 && !departmentBoundariesAdded) {
+                await loadDepartmentBoundaries(geoJsonLayer);
             }
-        });
 
-        // Add GeoJSON for this day
-        const geoJsonLayer = L.geoJSON(dayGeojson, {
-            style: getFeatureStyle,
-            onEachFeature: bindPopup
-        }).addTo(warningMap);
-
-        // Only load departments once on first day
-        if (day === 1 && !departmentBoundariesAdded) {
-            await loadDepartmentBoundaries(geoJsonLayer);
+        } catch (error) {
+            console.error('Error showing day:', error);
+            showStatus('Error loading day ' + day, 'danger');
         }
+    }
 
-        // 🆕 Update warning details for this day
-        if (currentWarningDetails) {
-            displayWarningDetails(currentWarningDetails, day);
-        }
-
-    } catch (error) {
-        console.error('Error showing day:', error);
-        showStatus('Error loading day ' + day, 'danger');
+    // Always update details
+    if (currentWarningDetails) {
+        displayWarningDetails(currentWarningDetails, day);
     }
 }
 
 /**
- * Load department boundaries with caching
+ * Create timeline from warning details
+ */
+function createTimelineFromDetails(details) {
+    const timeline = document.getElementById('map-timeline');
+    timeline.innerHTML = '';
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    details.days.forEach(day => {
+        const button = document.createElement('button');
+        button.className = 'btn btn-outline-primary';
+        button.id = `timeline-day-${day.day_number}`;
+
+        if (day.date) {
+            const date = new Date(day.date + 'T00:00:00'); // Force local timezone
+            const dd = String(date.getDate()).padStart(2, '0');
+            const mmm = monthNames[date.getMonth()];
+            button.textContent = `${dd} ${mmm}`;
+        } else {
+            button.textContent = `Day ${day.day_number}`;
+        }
+
+        button.dataset.day = day.day_number;
+        button.onclick = () => showDay(day.day_number);
+        timeline.appendChild(button);
+    });
+
+    updateTimelineButtons();
+}
+/**
+ * Update timeline button states
+ */
+function updateTimelineButtons() {
+    if (!currentWarningDetails) return;
+
+    currentWarningDetails.days.forEach(day => {
+        const button = document.getElementById(`timeline-day-${day.day_number}`);
+        if (button) {
+            if (day.day_number === currentDay) {
+                button.classList.remove('btn-outline-primary');
+                button.classList.add('btn-primary');
+            } else {
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-outline-primary');
+            }
+        }
+    });
+}
+/**
+ * Load department boundaries
  */
 async function loadDepartmentBoundaries(geoJsonLayer) {
     const departmentMatch = window.location.pathname.match(/\/department\/([^\/]+)/);
     const departmentName = departmentMatch ? departmentMatch[1] : null;
 
     try {
-        // Fetch all departments if not cached
         if (!allDepartmentsGeojson) {
-            console.log('Fetching all departments geometry...');
             const allDeptsResponse = await fetch('/api/departments/all/geometry');
             if (allDeptsResponse.ok) {
                 allDepartmentsGeojson = await allDeptsResponse.json();
-                console.log('✓ Cached all departments geometry');
             }
         }
 
-        // Add cached department boundaries
         if (allDepartmentsGeojson) {
             L.geoJSON(allDepartmentsGeojson, {
                 style: {
@@ -317,14 +345,11 @@ async function loadDepartmentBoundaries(geoJsonLayer) {
             departmentBoundariesAdded = true;
         }
 
-        // Zoom to current department
         if (departmentName) {
             if (!targetDepartmentGeometry) {
-                console.log(`Fetching ${departmentName} geometry for zoom...`);
                 const deptResponse = await fetch(`/api/departments/${departmentName}/geometry`);
                 if (deptResponse.ok) {
                     targetDepartmentGeometry = await deptResponse.json();
-                    console.log(`✓ Cached ${departmentName} geometry`);
                 }
             }
 
@@ -343,97 +368,20 @@ async function loadDepartmentBoundaries(geoJsonLayer) {
     }
 }
 
-/**
- * Create timeline buttons with actual dates
- */
-function createTimeline(days, features) {
-    const timeline = document.getElementById('map-timeline');
-    timeline.innerHTML = '';
-    timelineDates = [];
-
-    if (!features || features.length === 0) {
-        for (let day = 1; day <= days; day++) {
-            const button = document.createElement('button');
-            button.className = 'btn btn-outline-primary';
-            button.id = `timeline-day-${day}`;
-            button.textContent = `Day ${day}`;
-            button.dataset.day = day;
-            button.onclick = () => showDay(day);
-            timeline.appendChild(button);
-        }
-        return;
-    }
-
-    const firstFeature = features[0];
-    const baseDate = new Date(firstFeature.properties.valid_from);
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-    for (let day = 1; day <= days; day++) {
-        const button = document.createElement('button');
-        button.className = 'btn btn-outline-primary';
-        button.id = `timeline-day-${day}`;
-
-        const dayDate = new Date(baseDate);
-        dayDate.setDate(dayDate.getDate() + (day - 1));
-        timelineDates.push(dayDate);
-
-        const dd = String(dayDate.getDate()).padStart(2, '0');
-        const mmm = monthNames[dayDate.getMonth()];
-        button.textContent = `${dd} ${mmm}`;
-
-        button.dataset.day = day;
-        button.onclick = () => showDay(day);
-        timeline.appendChild(button);
-    }
-
-    console.log(`✓ Timeline created with ${days} days`);
-}
-
-/**
- * Update timeline button states
- */
-function updateTimelineButtons() {
-    for (let day = 1; day <= totalDays; day++) {
-        const button = document.getElementById(`timeline-day-${day}`);
-        if (button) {
-            if (day === currentDay) {
-                button.classList.remove('btn-outline-primary');
-                button.classList.add('btn-primary');
-            } else {
-                button.classList.remove('btn-primary');
-                button.classList.add('btn-outline-primary');
-            }
-        }
-    }
-}
-
-/**
- * Get style based on severity
- */
 function getFeatureStyle(feature) {
     const nivel = feature.properties?.nivel || 0;
-
     const classMap = {
         1: 'warning-nivel-1',
         2: 'warning-nivel-2',
         3: 'warning-nivel-3',
         4: 'warning-nivel-4'
     };
-
-    return {
-        className: classMap[nivel] || 'warning-nivel-default'
-    };
+    return { className: classMap[nivel] || 'warning-nivel-default' };
 }
 
-/**
- * Bind popup to feature
- */
 function bindPopup(feature, layer) {
     if (!feature.properties) return;
-
     const props = feature.properties;
-
     const popup = `
         <div>
             <h6 class="mb-2">Warning #${props.warning_number}</h6>
@@ -442,13 +390,9 @@ function bindPopup(feature, layer) {
             <p class="mb-0"><strong>Department:</strong> ${props.department}</p>
         </div>
     `;
-
     layer.bindPopup(popup);
 }
 
-/**
- * Get severity color
- */
 function getSeverityColor(severity) {
     const colors = {
         'verde': '#198754',
@@ -459,9 +403,6 @@ function getSeverityColor(severity) {
     return colors[severity] || '#ffc107';
 }
 
-/**
- * Show status message
- */
 function showStatus(message, type = 'info') {
     const status = document.getElementById('map-status');
     status.className = `alert alert-${type} mt-3`;
@@ -469,9 +410,6 @@ function showStatus(message, type = 'info') {
     status.style.display = 'block';
 }
 
-/**
- * Hide status message
- */
 function hideStatus() {
     const status = document.getElementById('map-status');
     status.style.display = 'none';

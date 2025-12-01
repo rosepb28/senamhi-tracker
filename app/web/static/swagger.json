@@ -1,0 +1,248 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SENAMHI Tracker API",
+    "version": "1.0.0",
+    "description": "API for weather forecasts and warnings from SENAMHI Peru"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5001",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/api/capabilities": {
+      "get": {
+        "summary": "Get API capabilities",
+        "tags": ["System"],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/warnings/active": {
+      "get": {
+        "summary": "Get all active warnings",
+        "tags": ["Warnings"],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/warnings/{warning_number}/info": {
+      "get": {
+        "summary": "Get warning metadata",
+        "tags": ["Warnings"],
+        "parameters": [
+          {
+            "name": "warning_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "425"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Warning not found"
+          }
+        }
+      }
+    },
+    "/api/warnings/{warning_number}/details": {
+      "get": {
+        "summary": "Get warning details (all departments)",
+        "tags": ["Warnings"],
+        "parameters": [
+          {
+            "name": "warning_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "425"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "No details found"
+          }
+        }
+      }
+    },
+    "/api/warnings/{warning_number}/details/{department}": {
+      "get": {
+        "summary": "Get warning details by department",
+        "tags": ["Warnings"],
+        "parameters": [
+          {
+            "name": "warning_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "425"
+          },
+          {
+            "name": "department",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "AREQUIPA"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "No details found"
+          }
+        }
+      }
+    },
+    "/api/warnings/{warning_number}/geometry": {
+      "get": {
+        "summary": "Get warning geometries (all days)",
+        "tags": ["Geometry"],
+        "parameters": [
+          {
+            "name": "warning_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "425"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GeoJSON FeatureCollection"
+          },
+          "404": {
+            "description": "No geometries found"
+          },
+          "503": {
+            "description": "PostGIS not available"
+          }
+        }
+      }
+    },
+    "/api/warnings/{warning_number}/geometry/{day}": {
+      "get": {
+        "summary": "Get warning geometry for specific day",
+        "tags": ["Geometry"],
+        "parameters": [
+          {
+            "name": "warning_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "425"
+          },
+          {
+            "name": "day",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GeoJSON FeatureCollection"
+          },
+          "404": {
+            "description": "Geometry not found"
+          },
+          "503": {
+            "description": "PostGIS not available"
+          }
+        }
+      }
+    },
+    "/api/departments/{department_name}/bounds": {
+      "get": {
+        "summary": "Get department bounding box",
+        "tags": ["Departments"],
+        "parameters": [
+          {
+            "name": "department_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "LIMA"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Department not found"
+          }
+        }
+      }
+    },
+    "/api/departments/{department_name}/geometry": {
+      "get": {
+        "summary": "Get department geometry",
+        "tags": ["Departments"],
+        "parameters": [
+          {
+            "name": "department_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "LIMA"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GeoJSON Feature"
+          },
+          "404": {
+            "description": "Department not found"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "API health check",
+        "tags": ["System"],
+        "responses": {
+          "200": {
+            "description": "API is healthy"
+          }
+        }
+      }
+    }
+  }
+}

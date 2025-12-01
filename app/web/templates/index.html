@@ -32,6 +32,96 @@
     {% endfor %}
 </div>
 
+<!-- Active Warnings Section -->
+<div class="row mb-4">
+    <div class="col-12 mb-3">
+        <h3>🚨 Active Warnings</h3>
+        <p class="text-muted">Current weather warnings across Peru</p>
+    </div>
+</div>
+
+{% if active_warnings %}
+<div class="row mb-4">
+    {% for item in active_warnings %}
+    <div class="col-md-4 col-sm-6 mb-3">
+        <div class="alert alert-severity-{{ item.warning.severity }} mb-0 cursor-pointer h-100"
+             data-bs-toggle="modal"
+             data-bs-target="#warning-modal"
+             onclick="loadWarningDetails('{{ item.warning.warning_number }}', {{ item.has_geometry|tojson }})">
+
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <strong>#{{ item.warning.warning_number }}</strong>
+                <div>
+                    <span class="badge bg-{% if item.warning.status == 'emitido' %}primary{% else %}danger{% endif %} me-1">
+                        {{ item.warning.status|upper }}
+                    </span>
+                    <span class="badge" style="background-color: {% if item.warning.severity == 'rojo' %}#dc3545{% elif item.warning.severity == 'naranja' %}#fd7e14{% elif item.warning.severity == 'amarillo' %}#ffc107{% else %}#198754{% endif %};">
+                        {{ item.warning.severity|upper }}
+                    </span>
+                </div>
+            </div>
+
+            <h6 class="mb-2">{{ item.warning.title }}</h6>
+
+            <small class="text-muted d-block mb-2">
+                <strong>Departments:</strong> {{ item.departments|join(', ') }}
+            </small>
+
+            <small class="text-muted d-block">
+                Valid: {{ item.warning.valid_from.strftime('%Y-%m-%d %H:%M') }} to {{ item.warning.valid_until.strftime('%Y-%m-%d %H:%M') }}
+            </small>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-success" role="alert">
+            ✓ No active warnings
+        </div>
+    </div>
+</div>
+{% endif %}
+
+ <!-- Warning Modal -->
+<div class="modal fade" id="warning-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="warning-modal-title">Warning Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Left: Map (if PostGIS available) -->
+                    <div id="map-column" style="display: none;">
+                        <div class="map-container mb-3" style="border-radius: 8px; overflow: hidden;">
+                            <div id="homepage-warning-map"></div>
+                        </div>
+                        <div class="map-timeline d-flex gap-2 justify-content-center flex-wrap" id="homepage-map-timeline"></div>
+                    </div>
+
+                    <!-- Right: Details (always visible) -->
+                    <div id="details-column" class="col-lg-12">
+                        <div id="homepage-warning-details">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted me-auto" id="modal-footer-text">Loading...</small>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Last Updated Info -->
 <div class="alert alert-light border" role="alert">
     <div class="row">
@@ -61,4 +151,9 @@
         📝 To manually update data, run: <code>poetry run senamhi scrape</code>
     </small>
 </div>
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/homepage-warnings.js') }}"></script>
+{% endblock %}
+
 {% endblock %}

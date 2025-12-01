@@ -144,7 +144,7 @@ def run_warnings_scrape_job() -> None:
     try:
         logger.info("Starting scheduled warnings scrape job")
 
-        result = service.update_warnings(force=False)
+        result = service.update_warnings(force=True)
 
         if result["success"]:
             logger.info(

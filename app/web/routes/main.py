@@ -16,9 +16,48 @@ def index():
     db = SessionLocal()
 
     try:
-        # Get all unique departments from locations
         locations = crud.get_locations(db, active_only=True)
         departments = sorted(list(set(loc.department for loc in locations)))
+
+        # Get active warnings (all departments)
+        active_warnings = crud.get_active_warnings(db)
+
+        # Deduplicate by warning_number and check geometry
+        warnings_data = {}
+
+        if settings.supports_postgis:
+            from app.storage.geo_models import WarningGeometry
+
+            for warning in active_warnings:
+                if warning.warning_number not in warnings_data:
+                    has_geo = (
+                        db.query(WarningGeometry)
+                        .filter(
+                            WarningGeometry.warning_number == warning.warning_number
+                        )
+                        .first()
+                        is not None
+                    )
+
+                    warnings_data[warning.warning_number] = {
+                        "warning": warning,
+                        "has_geometry": has_geo,
+                        "departments": [],
+                    }
+                warnings_data[warning.warning_number]["departments"].append(
+                    warning.department
+                )
+        else:
+            for warning in active_warnings:
+                if warning.warning_number not in warnings_data:
+                    warnings_data[warning.warning_number] = {
+                        "warning": warning,
+                        "has_geometry": False,
+                        "departments": [],
+                    }
+                warnings_data[warning.warning_number]["departments"].append(
+                    warning.department
+                )
 
         # Get last update times
         from sqlalchemy import func
@@ -29,6 +68,7 @@ def index():
         return render_template(
             "index.html",
             departments=departments,
+            active_warnings=list(warnings_data.values()),
             last_forecast_update=last_forecast_update,
             last_warning_update=last_warning_update,
         )

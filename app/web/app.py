@@ -4,6 +4,8 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from config.settings import settings
 
+from app.web.routes.swagger import swagger_bp
+
 
 def create_app():
     """Create and configure Flask application."""
@@ -26,6 +28,7 @@ def create_app():
 
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(swagger_bp, url_prefix="/api/docs")
 
     @app.errorhandler(404)
     def handle_404(error):

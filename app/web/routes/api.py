@@ -10,6 +10,8 @@ from config.settings import settings
 from datetime import timedelta
 from loguru import logger
 
+from app.storage import crud
+
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -366,6 +368,55 @@ def get_warning_details_by_department(warning_number, department):
                     }
                     for d in details
                 ],
+            }
+        )
+
+    finally:
+        db.close()
+
+
+@api_bp.route("/warnings/active")
+def get_active_warnings():
+    """
+    Get all active warnings (EMITIDO + VIGENTE).
+
+    Works with both SQLite and PostgreSQL.
+
+    Returns:
+        List of active warnings with metadata
+    """
+    db = SessionLocal()
+
+    try:
+        warnings = crud.get_active_warnings(db)
+
+        # Group by warning_number to deduplicate
+        unique_warnings = {}
+        for w in warnings:
+            if w.warning_number not in unique_warnings:
+                unique_warnings[w.warning_number] = {
+                    "warning_number": w.warning_number,
+                    "title": w.title,
+                    "description": w.description,
+                    "severity": w.severity,
+                    "status": w.status,
+                    "valid_from": w.valid_from.isoformat(),
+                    "valid_until": w.valid_until.isoformat(),
+                    "issued_at": w.issued_at.isoformat(),
+                    "departments": [],
+                }
+            unique_warnings[w.warning_number]["departments"].append(w.department)
+
+        # Check capabilities
+        has_postgis = settings.supports_postgis
+
+        return jsonify(
+            {
+                "warnings": list(unique_warnings.values()),
+                "capabilities": {
+                    "postgis": has_postgis,
+                    "geometries_available": has_postgis,
+                },
             }
         )
 

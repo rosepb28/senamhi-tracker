@@ -58,7 +58,7 @@
     color: #0f5132;
 }
 
-/* ==================== Warning Map Styles ==================== */
+/* ==================== Department Warning Map Styles ==================== */
 
 /* Map modal - more vertical */
 #map-modal .modal-dialog {
@@ -215,4 +215,94 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* ==================== Homepage Warning Modal Layout ==================== */
+:root {
+    --homepage-map-height: 750px; /* Fixed height in pixels */
+    --homepage-map-col-width: 55%;
+    --homepage-details-col-width: 45%;
+
+    /* Map view configuration */
+    --homepage-map-center-lat: -9.7;
+    --homepage-map-center-lng: -75.0152;
+    --homepage-map-zoom: 5.5;
+}
+
+/*
+ * NOTE: Homepage warning map configuration:
+ *
+ * Map size:
+ * - --homepage-map-height: Controls map height (recommended: 700-800px)
+ *
+ * Zoom levels (edit in homepage-warnings.js):
+ * - 4.5: More zoomed out (all South America visible)
+ * - 5.0: Default zoom (full Peru)
+ * - 5.2: Balanced view (Peru fully visible)
+ * - 5.5: Closer view (Peru centered) ← Current
+ * - 6.0: More detail (less context)
+ *
+ * Note: Leaflet zoom works in 0.1 increments (5.1, 5.2, 5.3, etc.)
+ * but visual changes are more noticeable at 0.5 intervals
+ */
+
+#warning-modal .modal-dialog {
+    max-width: 1400px;
+    max-height: 97vh; /* Increase from 95vh to 97vh */
+}
+
+#warning-modal .modal-content {
+    max-height: 97vh; /* Match dialog height */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Reduce header padding */
+#warning-modal .modal-header {
+    padding: 0.75rem 1rem; /* Reduce from default 1rem */
+}
+
+/* Reduce footer padding */
+#warning-modal .modal-footer {
+    padding: 0.5rem 1rem; /* Reduce from default 1rem */
+}
+
+#warning-modal .modal-body {
+    flex: 1; /* Grows to fill available space */
+    overflow-y: auto; /* Allow scroll if needed */
+    padding: 0.75rem 1rem; /* Reduce from default 1rem */
+}
+
+#warning-modal .modal-body .row {
+    min-height: 100%; /* Minimum full body height */
+}
+
+#map-column {
+    flex: 0 0 var(--homepage-map-col-width);
+    max-width: var(--homepage-map-col-width);
+    display: flex;
+    flex-direction: column;
+}
+
+#details-column {
+    flex: 0 0 var(--homepage-details-col-width);
+    max-width: var(--homepage-details-col-width);
+    overflow-y: auto; /* Only details section scrolls */
+    padding-left: 1rem;
+}
+
+/* When no map available, details take full width */
+#details-column.col-lg-12 {
+    flex: 0 0 100%;
+    max-width: 100%;
+}
+
+.map-container {
+    height: var(--homepage-map-height); /* Fixed container height */
+    margin-bottom: 0.5rem; /* Reduce margin */
+}
+
+#homepage-warning-map {
+    height: 100%; /* Takes full container height */
+    width: 100%;
 }

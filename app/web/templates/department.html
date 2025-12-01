@@ -163,23 +163,21 @@
                     </div>
                     <h6 class="mb-2">{{ item.warning.title }}</h6>
                     <small class="text-muted d-block mb-2">
-                        Valid: {{ item.warning.valid_from.strftime('%Y-%m-%d') }} to {{ item.warning.valid_until.strftime('%Y-%m-%d') }}
+                        Valid: {{ item.warning.valid_from.strftime('%Y-%m-%d %H:%M') }} to {{ item.warning.valid_until.strftime('%Y-%m-%d %H:%M') }}
                     </small>
 
-                    <!-- 🆕 View Map Button - only show if has geometry -->
-                    {% if item.has_geometry %}
+                    <!-- View Details Button - always enabled -->
                     <button class="btn btn-sm btn-outline-primary w-100"
                             type="button"
                             data-bs-toggle="modal"
                             data-bs-target="#map-modal"
-                            onclick="loadWarningMap('{{ item.warning.warning_number }}')">
-                        🗺️ View Map
+                            onclick="loadWarningMap('{{ item.warning.warning_number }}', {{ item.has_geometry|tojson }})">
+                        {% if item.has_geometry %}
+                            🗺️ View Map & Details
+                        {% else %}
+                            📋 View Details
+                        {% endif %}
                     </button>
-                    {% else %}
-                    <button class="btn btn-sm btn-outline-secondary w-100" disabled>
-                        🗺️ Map Not Available
-                    </button>
-                    {% endif %}
                 </div>
                 {% endfor %}
             {% else %}
@@ -198,14 +196,16 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="mapModalLabel">
-                    <span id="map-modal-title">Warning #---</span>
+                    <span id="map-modal-title">Warning Details</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <!-- Map Container -->
-                <div class="map-container" style="height: 600px; border-radius: 8px; overflow: hidden;">
-                    <div id="warning-map" style="height: 100%; width: 100%;"></div>
+                <!-- Map Container (conditional) -->
+                <div id="map-container-wrapper">
+                    <div class="map-container" style="height: 600px; border-radius: 8px; overflow: hidden;">
+                        <div id="warning-map" style="height: 100%; width: 100%;"></div>
+                    </div>
                 </div>
 
                 <!-- Timeline -->
@@ -213,7 +213,7 @@
                     <!-- Buttons generated dynamically -->
                 </div>
 
-                <!-- 🆕 WARNING DETAILS CONTAINER -->
+                <!-- Warning Details Container -->
                 <div id="warning-details-container" class="mt-4">
                     <!-- Details populated by JavaScript -->
                 </div>
@@ -222,7 +222,7 @@
                 <div id="map-status" class="alert mt-3" style="display: none;"></div>
             </div>
             <div class="modal-footer">
-                <small class="text-muted me-auto">Geometries from SENAMHI GeoServer</small>
+                <small class="text-muted me-auto" id="modal-footer-text">Warning details from SENAMHI API</small>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>

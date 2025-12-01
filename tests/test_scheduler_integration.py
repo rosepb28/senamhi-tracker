@@ -72,7 +72,7 @@ class TestSchedulerJobs:
         run_warnings_scrape_job()
 
         # Verify service was called
-        mock_service.update_warnings.assert_called_once_with(force=False)
+        mock_service.update_warnings.assert_called_once_with(force=True)
 
     @patch("app.scheduler.jobs.time.sleep")
     @patch("app.scheduler.jobs.SessionLocal")
